@@ -893,60 +893,13 @@
   }
 
   function seedMockData() {
-    const savedAlerts = localStorage.getItem("sentinel_alerts");
-    if (savedAlerts) {
-      try { ALERTS = JSON.parse(savedAlerts); } catch (e) {}
-    }
-    if (!ALERTS.length) {
-      const types = [
-        { type: "Port scan", tool: "nmap", sev: "Low", sid: 1000004, sig: "ET SCAN Nmap TCP SYN Port Scan", payload: "TCP SYN port probe" },
-        { type: "SSH brute force", tool: "Hydra", sev: "High", sid: 1000001, sig: "ET SCAN Potential SSH Brute Force Attempt", payload: "Failed password for root" },
-        { type: "SQL injection", tool: "sqlmap", sev: "High", sid: 1000002, sig: "ET WEB_SPECIFIC_APPS DVWA SQL Injection Attempt", payload: "1' UNION SELECT user,password FROM users--" },
-        { type: "SYN flood", tool: "hping3", sev: "Medium", sid: 1000003, sig: "ET DOS Possible TCP SYN Flood", payload: "SYN flood 100+ pps" }
-      ];
-      const ips = ["192.168.56.101", "192.168.56.102", "192.168.56.110", "100.64.0.7"];
-      const now = Date.now();
-      for (let i = 0; i < 60; i++) {
-        const t = types[Math.floor(Math.random() * types.length)];
-        const ip = ips[Math.floor(Math.random() * ips.length)];
-        ALERTS.push({
-          id: 'ALT-' + (1000 + i),
-          ts: now - Math.floor(Math.pow(Math.random(), 2) * 86400000),
-          ip: ip,
-          src_port: Math.floor(30000 + Math.random() * 30000),
-          dst_ip: '192.168.56.103',
-          dst_port: t.type === 'SSH brute force' ? 22 : 80,
-          proto: 'TCP',
-          type: t.type,
-          tool: t.tool,
-          sev: t.sev,
-          sid: t.sid,
-          signature: t.sig,
-          payload: t.payload,
-          status: 'active'
-        });
-      }
-      ALERTS.sort((a, b) => b.ts - a.ts);
-    }
-
-    const savedRules = localStorage.getItem("sentinel_rules");
-    if (savedRules) {
-      try { RULES = JSON.parse(savedRules); } catch (e) {}
-    }
-    if (!RULES.length) {
-      RULES = [
-        { id: 1, sid: 1000001, name: "SSH Brute Force", raw: 'alert tcp any any -> $HOME_NET 22 (msg:"SSH Brute Force"; threshold:type both, count 5, seconds 60; sid:1000001; rev:1;)', enabled: true, desc: "Phát hiện vét cạn SSH" },
-        { id: 2, sid: 1000002, name: "SQL Injection DVWA", raw: 'alert tcp any any -> $HOME_NET 80 (msg:"DVWA SQLi Attempt"; content:"UNION"; nocase; sid:1000002; rev:1;)', enabled: true, desc: "Phát hiện SQLi" },
-        { id: 3, sid: 1000003, name: "SYN Flood DoS", raw: 'alert tcp any any -> $HOME_NET any (msg:"SYN Flood"; flags:S; threshold:count 100, seconds 1; sid:1000003; rev:1;)', enabled: true, desc: "Phát hiện DoS" }
-      ];
-    }
-
-    const savedBlocked = localStorage.getItem("sentinel_blocked");
-    if (savedBlocked) {
-      try { BLOCKED = JSON.parse(savedBlocked); } catch (e) {}
-    } else {
-      BLOCKED = { "192.168.56.110": { ip: "192.168.56.110", reason: "SYN flood DoS", blockedAt: Date.now() - 3600000 } };
-    }
+    // 100% Real mode: No mock alerts generated
+    try {
+      localStorage.removeItem("sentinel_alerts");
+      localStorage.removeItem("sentinel_blocked");
+    } catch (e) {}
+    ALERTS = [];
+    BLOCKED = {};
   }
 
   async function syncWithServer() {
