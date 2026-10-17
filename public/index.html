@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Sentinel IDS – Hệ Thống Giám Sát & Phát Hiện Xâm Nhập (MMT)</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app">
+  <!-- Top Application Bar -->
+  <header class="tb">
+    <button class="ib" id="mn" aria-label="Menu">
+      <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+    </button>
+    <span style="display:grid;color:var(--acc);margin-right:6px">
+      <svg class="i" viewBox="0 0 24 24" style="width:24px;height:24px"><path d="M12 2.4L19.6 5.2V11.4C19.6 16.2 16.4 19.8 12 21.6C7.6 19.8 4.4 16.2 4.4 11.4V5.2Z" fill="currentColor" fill-opacity=".2"/><path d="M12 2.4L19.6 5.2V11.4C19.6 16.2 16.4 19.8 12 21.6C7.6 19.8 4.4 16.2 4.4 11.4V5.2Z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 12l2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+    </span>
+    <b>Sentinel IDS <span style="font-size:11px;font-weight:400;color:var(--mut);margin-left:6px">Đồ án Mạng Máy Tính</span></b>
+    <span class="sp"></span>
+    <button class="ib" id="soundToggleBtn" title="Bật/Tắt âm thanh cảnh báo"></button>
+    <button class="ib" id="tbT" aria-label="Switch dark or light theme" title="Chuyển chế độ sáng/tối"></button>
+  </header>
+
+  <!-- Global Dropdown Menu -->
+  <div class="menu" id="menu">
+    <div data-m="se:lab">📘 Cẩm nang chạy Lab IDS (Wazuh + Kali)</div>
+    <div data-m="se:prof">Thông tin nhóm đồ án</div>
+    <div data-m="al">Danh sách cảnh báo an ninh</div>
+    <div data-m="rp">Xuất báo cáo PDF</div>
+    <hr>
+    <div data-m="se:atk">Kịch bản tấn công (nmap, hydra, sqlmap)</div>
+    <div data-m="se:rul">Quản lý luật Suricata</div>
+    <div data-m="se:chk">Tiến độ công việc đồ án</div>
+    <div data-m="se:cmp">So sánh Suricata vs Snort</div>
+    <hr>
+    <div data-m="se">Cài đặt hệ thống</div>
+    <div data-m="se:help">Hướng dẫn & khắc phục sự cố VM</div>
+    <div data-m="se:about">Thông tin phần mềm</div>
+  </div>
+
+  <!-- Toast Notification Message -->
+  <div id="toast"></div>
+
+  <!-- Main Body Content -->
+  <div class="body">
+    <!-- Left Navigation Sidebar -->
+    <aside class="left">
+      <label class="srch">
+        <svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        <input id="q" placeholder="Tìm kiếm IP, agent...">
+      </label>
+      <div>
+        <div class="tab on" data-t="ag">
+          <svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><path d="M7 7h.01M7 17h.01"/></svg>
+          Máy Giám Sát (Agents)
+        </div>
+        <div class="tab" data-t="at">
+          <svg class="i" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>
+          Kẻ Tấn Công (Attackers)
+        </div>
+      </div>
+      <div class="sub" id="sub"></div>
+      <div class="promo" id="pr">
+        <span class="av"><svg class="i" viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5"/></svg></span>
+        <span>Xuất báo cáo tổng hợp PDF trong 1 click</span>
+        <span>›</span>
+      </div>
+      <div class="list" id="list"></div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="main">
+      <!-- Hero Top Info -->
+      <section class="hero">
+        <div class="ttl">
+          <span class="badge">
+            <svg class="i" viewBox="0 0 24 24"><path d="M12 2.4L19.6 5.2V11.4C19.6 16.2 16.4 19.8 12 21.6C7.6 19.8 4.4 16.2 4.4 11.4V5.2Z" fill="currentColor"/></svg>
+          </span>
+          <span id="hN">victim</span>
+        </div>
+        <p id="hI">192.168.56.103 · Wazuh agent 001</p>
+        <div class="btns">
+          <button class="btn" id="va">Xem cảnh báo</button>
+          <button class="btn" id="pz">Tạm dừng giám sát</button>
+        </div>
+      </section>
+
+      <!-- Network Topology Map Visualizer -->
+      <section class="map">
+        <svg viewBox="0 0 400 240" aria-hidden="true">
+          <defs>
+            <pattern id="dp" width="10" height="10" patternUnits="userSpaceOnUse">
+              <circle cx="2" cy="2" r="1.1" fill="#8a8798" opacity=".4"/>
+            </pattern>
+          </defs>
+          <ellipse cx="200" cy="120" rx="190" ry="105" fill="url(#dp)"/>
+          
+          <!-- Attack traffic line (Kali -> Victim) -->
+          <path class="atk" d="M70 55L200 120"/>
+          <!-- Safe link line (Victim -> Wazuh) -->
+          <path class="lk" d="M330 185L200 120"/>
+          
+          <!-- Victim node with pulsing defense ring -->
+          <circle class="rg" cx="200" cy="120" r="48"/>
+          <circle class="a" cx="200" cy="120" r="30" opacity=".35"/>
+          <circle cx="200" cy="120" r="6" fill="#fff"/>
+          <text class="tx" x="200" y="168">Victim (Suricata Sensor)</text>
+
+          <!-- Kali Attacker Node -->
+          <circle class="b" cx="70" cy="55" r="7"/>
+          <text class="tx" x="70" y="40">Kali Linux (Attacker)</text>
+
+          <!-- Wazuh Server Node -->
+          <circle class="a" cx="330" cy="185" r="7"/>
+          <text class="tx" x="330" y="205">Wazuh Server</text>
+        </svg>
+      </section>
+
+      <!-- Right Action Tools -->
+      <aside class="tools">
+        <div class="tl" data-k="al">
+          <svg class="i" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0112 0v5l2 2H4z"/><path d="M10 21h4"/></svg>
+          Cảnh báo<i class="bd" id="bd"></i>
+        </div>
+        <div class="tl" data-k="st">
+          <svg class="i" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+          Thống kê
+        </div>
+        <div class="tl" data-k="bl">
+          <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>
+          Chặn IP
+        </div>
+        <div class="tl" data-k="rp">
+          <svg class="i" viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5"/></svg>
+          Báo cáo
+        </div>
+        <div class="sep"></div>
+        <div class="tl" data-k="se">
+          <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
+          Cài đặt
+        </div>
+      </aside>
+
+      <!-- Popover Widget for Quick Stats/Blocklist/Report -->
+      <div class="pop" id="pop"></div>
+
+      <!-- Bottom Status & Real-time Chart -->
+      <footer class="stats">
+        <div>
+          <div class="prot" id="prot">
+            <svg class="i" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>
+            <span id="pT">Đang được bảo vệ</span>
+            <span id="pS"></span>
+          </div>
+          <div class="cols">
+            <div class="stat"><label>IP Giám Sát</label><b id="sIp">192.168.56.103</b></div>
+            <div class="stat"><label>Tải Cảnh Báo</label><b id="sLd">0%</b></div>
+            <div class="stat"><label>Động Cơ</label><b>Suricata + Wazuh</b></div>
+            <div class="stat"><label>Tổng Cảnh Báo</label><b id="sTot">0</b></div>
+          </div>
+        </div>
+        <div class="chart">
+          <div class="hd">
+            <span>Cảnh báo theo chu kỳ 5 phút (3 giờ qua)</span>
+            <span id="cN"></span>
+          </div>
+          <svg id="ch" viewBox="0 0 400 84" preserveAspectRatio="none"></svg>
+        </div>
+      </footer>
+
+      <!-- Sliding Full Screen Panel for Detailed Views -->
+      <div class="panel" id="panel"></div>
+    </main>
+  </div>
+</div>
+
+<!-- Print-only Report Area -->
+<div id="rep"></div>
+
+<!-- Application Scripts -->
+<script src="js/i18n.js"></script>
+<script src="js/sound.js"></script>
+<script src="js/simulator.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

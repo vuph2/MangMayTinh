@@ -1,0 +1,10 @@
+{
+  "192.168.56.110": {
+    "ip": "192.168.56.110",
+    "reason": "Repeated SYN flood attack against DVWA web port 80",
+    "blockedAt": 1773722000000,
+    "duration": 3600,
+    "source": "Wazuh Active Response",
+    "ruleSid": 1000003
+  }
+}

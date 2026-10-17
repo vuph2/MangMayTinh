@@ -1,0 +1,44 @@
+[
+  {
+    "id": "ag-1",
+    "name": "victim",
+    "ip": "192.168.56.102",
+    "on": 1,
+    "status": "active",
+    "os": "Ubuntu Server (Victim)",
+    "role": "DVWA (Port 8080) & Suricata Sensor",
+    "ssh": "ssh -p 2222 victim@localhost",
+    "web": "http://localhost:8080",
+    "cpu": 18,
+    "mem": 42,
+    "alerts": 128
+  },
+  {
+    "id": "ag-2",
+    "name": "Ubuntu1",
+    "ip": "192.168.56.103",
+    "on": 1,
+    "status": "active",
+    "os": "Ubuntu Server (Wazuh)",
+    "role": "Wazuh Manager & Indexer (Port 8443)",
+    "ssh": "ssh vuph@localhost",
+    "web": "https://localhost:8443",
+    "wazuhPass": "3Jl0Lt7Hv.Righz2YZO04*+rkdkbMOCC",
+    "cpu": 35,
+    "mem": 68,
+    "alerts": 24
+  },
+  {
+    "id": "ag-3",
+    "name": "kali",
+    "ip": "192.168.56.101",
+    "on": 1,
+    "status": "active",
+    "os": "Kali Linux (Attacker)",
+    "role": "Attacker Node (nmap, hydra)",
+    "login": "kali / kali",
+    "cpu": 45,
+    "mem": 52,
+    "alerts": 0
+  }
+]
