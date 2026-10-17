@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "sentinel-ids-mmt",
   "version": "1.0.0",
   "description": "Sentinel IDS - Intrusion Detection System Dashboard & Lab Backend for MMT Project",
@@ -6,7 +6,16 @@
   "scripts": {
     "start": "node server.js"
   },
-  "keywords": ["ids", "suricata", "wazuh", "security", "lab"],
+  "keywords": [
+    "ids",
+    "suricata",
+    "wazuh",
+    "security",
+    "lab"
+  ],
   "author": "Pikachu-Learner",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "ssh2": "^1.17.0"
+  }
 }

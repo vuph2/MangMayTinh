@@ -426,6 +426,140 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
+
+// ====================================================================
+// AUTOMATIC LIVE SURICATA LOG STREAMER (ZERO MANUAL COMMANDS REQUIRED)
+// Automatically tails /var/log/suricata/fast.log on Victim VM via SSH
+// ====================================================================
+const { Client: SshClient } = require('ssh2');
+
+let sshConn = null;
+let isSshConnecting = false;
+let seenAlertKeys = new Set();
+
+function parseSuricataFastLog(line) {
+  const re = /\[\*\*\]\s*\[(\d+):(\d+):(\d+)\]\s*(.*?)\s*\[\*\*\](?:\s*\[Classification:\s*(.*?)\])?\s*\[Priority:\s*(\d+)\]\s*\{(.*?)\}\s*([\d\.]+):?(\d*)\s*->\s*([\d\.]+):?(\d*)/;
+  const m = line.match(re);
+  if (!m) return null;
+
+  const prio = parseInt(m[6], 10);
+  const sev = prio === 1 ? 'High' : prio === 2 ? 'Medium' : 'Low';
+  const sig = m[4].trim();
+  const classification = (m[5] || '').trim();
+
+  let attackType = classification || 'Intrusion Attempt';
+  let tool = 'Suricata';
+
+  if (sig.toLowerCase().includes('nmap')) {
+    attackType = 'Port scan';
+    tool = 'nmap';
+  } else if (sig.toLowerCase().includes('ssh') || sig.toLowerCase().includes('hydra')) {
+    attackType = 'SSH brute force';
+    tool = 'Hydra';
+  } else if (sig.toLowerCase().includes('sql') || sig.toLowerCase().includes('sqli')) {
+    attackType = 'SQL injection';
+    tool = 'sqlmap';
+  } else if (sig.toLowerCase().includes('flood') || sig.toLowerCase().includes('dos')) {
+    attackType = 'SYN flood';
+    tool = 'hping3';
+  } else if (sig.toLowerCase().includes('passwd') || sig.toLowerCase().includes('file')) {
+    attackType = 'Sensitive File Access';
+    tool = 'curl';
+  }
+
+  return {
+    id: 'ALT-' + Date.now().toString().slice(-6) + '-' + Math.floor(Math.random() * 100),
+    ts: Date.now(),
+    ip: m[8].trim(),
+    src_port: parseInt(m[9] || 0, 10),
+    dst_ip: m[10].trim(),
+    dst_port: parseInt(m[11] || 80, 10),
+    proto: m[7].trim(),
+    type: attackType,
+    tool: tool,
+    sev: sev,
+    sid: parseInt(m[2], 10),
+    signature: sig,
+    payload: line.trim(),
+    status: 'active',
+    agent: 'victim'
+  };
+}
+
+function startSuricataLiveStream() {
+  if (isSshConnecting || (sshConn && sshConn._sock && sshConn._sock.readable)) return;
+  isSshConnecting = true;
+
+  const conn = new SshClient();
+  sshConn = conn;
+
+  conn.on('ready', () => {
+    isSshConnecting = false;
+    console.log('[REAL-TIME] SSH connected to Victim VM (192.168.56.102). Streaming /var/log/suricata/fast.log live...');
+
+    conn.exec('tail -F -n 50 /var/log/suricata/fast.log', (err, stream) => {
+      if (err) {
+        console.error('[REAL-TIME] Error executing tail:', err.message);
+        conn.end();
+        return;
+      }
+
+      let buffer = '';
+      stream.on('data', chunk => {
+        buffer += chunk.toString();
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // keep last unfinished line
+
+        for (const line of lines) {
+          if (!line.includes('[**]')) continue;
+          const parsed = parseSuricataFastLog(line);
+          if (parsed) {
+            // Deduplicate same attack within short window
+            const key = parsed.ip + '_' + parsed.sid + '_' + Math.floor(parsed.ts / 2000);
+            if (seenAlertKeys.has(key)) continue;
+            seenAlertKeys.add(key);
+            if (seenAlertKeys.size > 200) seenAlertKeys.clear();
+
+            console.log(`[REAL-TIME ALERT DETECTED] ${parsed.type} (${parsed.tool}) from ${parsed.ip} -> ${parsed.dst_ip}:${parsed.dst_port}`);
+            alerts.unshift(parsed);
+            if (alerts.length > 500) alerts.pop();
+            saveJson('alerts.json', alerts);
+            broadcastSSE('new_alert', parsed);
+          }
+        }
+      });
+
+      stream.on('close', () => {
+        console.log('[REAL-TIME] Log stream closed. Reconnecting in 3s...');
+        conn.end();
+      });
+    });
+  });
+
+  conn.on('error', err => {
+    isSshConnecting = false;
+    // Silent retry when VM is booting or offline
+  });
+
+  conn.on('close', () => {
+    isSshConnecting = false;
+    sshConn = null;
+    setTimeout(startSuricataLiveStream, 3000);
+  });
+
+  conn.connect({
+    host: '192.168.56.102',
+    port: 22,
+    username: 'victim',
+    password: 'password',
+    readyTimeout: 4000
+  });
+}
+
+// Start live streaming immediately
+startSuricataLiveStream();
+setInterval(startSuricataLiveStream, 5000);
+
 server.listen(PORT, () => {
   console.log(`====================================================`);
   console.log(`   Sentinel IDS Dashboard - Mạng Máy Tính (MMT)     `);
