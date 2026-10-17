@@ -151,7 +151,7 @@ async function checkAllAgentsHealth() {
   }
 }
 
-setInterval(checkAllAgentsHealth, 5000);
+setInterval(checkAllAgentsHealth, 2500);
 setTimeout(checkAllAgentsHealth, 1000);
 
 const server = http.createServer(async (req, res) => {

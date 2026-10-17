@@ -226,6 +226,18 @@
     prot.className = "prot" + (isOk ? "" : " bad");
     $("pT").textContent = !isOnline ? tr("notProtected") : (isPaused ? tr("paused") : tr("protected"));
     $("sIp").textContent = agent.ip;
+
+    // Real-time visual topology adjustment
+    const mapEl = document.querySelector(".map svg");
+    if (mapEl) {
+      const rg = mapEl.querySelector(".rg");
+      const atkLine = mapEl.querySelector(".atk");
+      const lkLine = mapEl.querySelector(".lk");
+      if (rg) rg.style.display = isOnline ? "block" : "none";
+      if (atkLine) atkLine.style.opacity = isOnline ? "1" : "0.15";
+      if (lkLine) lkLine.style.opacity = isOnline ? "1" : "0.15";
+    }
+
     tickTimer();
   }
 
@@ -990,6 +1002,18 @@
         delete BLOCKED[ip];
         renderAll();
       });
+      evtSource.addEventListener('agents_updated', e => {
+        try {
+          const list = JSON.parse(e.data);
+          if (list && list.length) {
+            AGENTS = list.map(a => ({
+              ...a,
+              on: (a.on === 1 || a.status === 'active') ? 1 : 0
+            }));
+            renderAll();
+          }
+        } catch (err) {}
+      });
     } catch (err) {}
   }
 
@@ -1254,37 +1278,23 @@
 
   setInterval(tickTimer, 1000);
 
-  setInterval(() => {
-    if (!isLive || isPaused) return;
-    if (Math.random() < 0.35) {
-      const types = [
-        { type: "Port scan", tool: "nmap", sev: "Low", sid: 1000004, sig: "ET SCAN Nmap TCP SYN Port Scan", payload: "TCP SYN port probe" },
-        { type: "SSH brute force", tool: "Hydra", sev: "High", sid: 1000001, sig: "ET SCAN Potential SSH Brute Force Attempt", payload: "Failed password for root" },
-        { type: "SQL injection", tool: "sqlmap", sev: "High", sid: 1000002, sig: "ET WEB_SPECIFIC_APPS DVWA SQL Injection Attempt", payload: "1' UNION SELECT user,password FROM users--" },
-        { type: "SYN flood", tool: "hping3", sev: "Medium", sid: 1000003, sig: "ET DOS Possible TCP SYN Flood", payload: "SYN flood 100+ pps" }
-      ];
-      const ips = ["192.168.56.101", "192.168.56.102", "192.168.56.110"];
-      const t = types[Math.floor(Math.random() * types.length)];
-      const ip = ips[Math.floor(Math.random() * ips.length)];
-      const autoAlert = {
-        id: 'ALT-' + Date.now().toString().slice(-6),
-        ts: Date.now(),
-        ip: ip,
-        src_port: Math.floor(30000 + Math.random() * 30000),
-        dst_ip: '192.168.56.103',
-        dst_port: t.type === 'SSH brute force' ? 22 : 80,
-        proto: 'TCP',
-        type: t.type,
-        tool: t.tool,
-        sev: t.sev,
-        sid: t.sid,
-        signature: t.sig,
-        payload: t.payload,
-        status: 'active'
-      };
-      pushAlert(autoAlert);
-    }
-  }, 5000);
+  // Real-time synchronization of VM agent status every 3 seconds
+  setInterval(async () => {
+    try {
+      const res = await fetch('/api/agents');
+      if (res.ok) {
+        const list = await res.json();
+        if (list && list.length) {
+          AGENTS = list.map(a => ({
+            ...a,
+            on: (a.on === 1 || a.status === 'active') ? 1 : 0
+          }));
+          renderLeft();
+          renderHero();
+        }
+      }
+    } catch (e) {}
+  }, 3000);
 
   // Normalize on-state
   AGENTS.forEach(a => { a.on = 1; a.status = 'active'; });
