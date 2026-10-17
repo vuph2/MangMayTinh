@@ -32,7 +32,6 @@ D:\MMT\
 │   └── block_ip.sh         # Script lệnh iptables chặn IP trên máy ảo Linux
 │
 ├── start.bat               # 1 Click: Khởi động server Node.js & mở Dashboard
-├── open_browser.bat        # 1 Click: Mở trực tiếp giao diện (chế độ độc lập Offline)
 └── README.md               # Tài liệu hướng dẫn chi tiết
 ```
 
