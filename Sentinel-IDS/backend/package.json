@@ -1,0 +1,14 @@
+{
+  "name": "sentinel-ids-backend",
+  "version": "2.0.0",
+  "description": "Sentinel IDS - Backend (Data access + API server): Auth, Admin, SSH Gateway, Port tunnels, Suricata/Wazuh integration",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node test/selftest.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": { "ssh2": "^1.16.0" },
+  "license": "MIT"
+}

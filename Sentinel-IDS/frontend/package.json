@@ -1,0 +1,7 @@
+{
+  "name": "sentinel-ids-frontend",
+  "version": "2.0.0",
+  "description": "Sentinel IDS - Frontend (UI). HTML/CSS/JavaScript thuan, khong can build.",
+  "scripts": { "start": "node serve.js" },
+  "license": "MIT"
+}
