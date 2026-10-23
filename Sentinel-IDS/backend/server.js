@@ -70,7 +70,6 @@ const server = http.createServer(async (req, res) => {
     } else if (route.opts.auth) {
       user = A.fromRequest(req);
       if (!user) throw new HttpError(401, 'Chua dang nhap hoac phien het han');
-      if (user.mustChangePassword && p !== '/auth/change-password' && p !== '/auth/me' && p !== '/auth/logout') throw new HttpError(403, 'MUST_CHANGE_PASSWORD');
       if (route.opts.roles && !route.opts.roles.includes(user.role)) throw new HttpError(403, 'Khong du quyen (can quyen admin)');
     }
     const body = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) ? await readBody(req) : {};

@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node test/selftest.js"
+    "test": "node test/selftest.js",
+    "reset-admin": "node scripts/reset-admin.js"
   },
   "engines": { "node": ">=18" },
   "dependencies": { "ssh2": "^1.16.0" },

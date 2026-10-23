@@ -80,6 +80,7 @@ window.Views = window.Views || {};
     home: '<path d="M3 11l9-8 9 8M5 10v10h14V10"/>',
     open: '<path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/>',
     scissors: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.5 8l11 9M8.5 16l11-9"/>',
+    eyeoff: '<path d="M3 3l18 18M10.6 6.1A10 10 0 0112 6c6 0 10 6 10 6a17 17 0 01-3.2 3.9M6.7 6.7C4 8.5 2 12 2 12s4 7 10 7c1.7 0 3.2-.4 4.5-1M9.9 9.9a3 3 0 004.2 4.2"/>',
     warn: '<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/>'
   };
   const icon = (name, size = 18) => {
@@ -100,10 +101,13 @@ window.Views = window.Views || {};
   }
 
   // ---------- Modal ----------
-  function modal({ title, body, actions = [], wide = false, onClose }) {
+  function modal({ title, body, actions = [], wide = false, onClose, dismissable = true }) {
     const close = () => { ov.remove(); document.removeEventListener('keydown', esc); onClose && onClose(); };
-    const esc = e => { if (e.key === 'Escape') close(); };
-    const ov = h('div', { class: 'overlay', onclick: e => { if (e.target === ov) close(); } },
+    const esc = e => { if (e.key === 'Escape' && dismissable) close(); };
+    // Chi dong khi NHAN va THA chuot deu o vung nen toi. (Boi den van ban roi tha chuot ra ngoai hop thoai
+    // truoc day bi hieu nham la click ra ngoai -> dong hop thoai / mat du lieu dang nhap.)
+    let downOnOv = false;
+    const ov = h('div', { class: 'overlay', onmousedown: e => { downOnOv = e.target === ov; }, onclick: e => { if (e.target === ov && downOnOv && dismissable) close(); downOnOv = false; } },
       h('div', { class: 'modal' + (wide ? ' wide' : '') },
         h('div', { class: 'mh' }, h('b', {}, title), h('button', { class: 'ib', onclick: close, 'aria-label': 'close' }, icon('x'))),
         h('div', { class: 'mb' }, body),
@@ -158,10 +162,20 @@ window.Views = window.Views || {};
   // Form helpers
   const field = (label, input, hint) => h('label', { class: 'fld' }, h('span', {}, label), input, hint ? h('small', { class: 'mut' }, hint) : null);
   const input = (attrs = {}) => h('input', { class: 'inp', ...attrs });
+  // O nhap mat khau co nut "xem mat khau" (con mat). Tra ve phan tu co .value / .focus() nhu <input>.
+  const pw = (attrs = {}) => {
+    const inp = h('input', { class: 'inp', type: 'password', autocomplete: 'off', ...attrs });
+    const btn = h('button', { type: 'button', class: 'ib pw-eye', tabindex: '-1', title: T('Hiện/ẩn mật khẩu', 'Show/hide password'), onmousedown: e => e.preventDefault(),
+      onclick: () => { const show = inp.type === 'password'; inp.type = show ? 'text' : 'password'; btn.replaceChildren(icon(show ? 'eyeoff' : 'eye', 18)); inp.focus(); } }, icon('eye', 18));
+    const w = h('div', { class: 'pw' }, inp, btn);
+    Object.defineProperty(w, 'value', { get: () => inp.value, set: v => { inp.value = v; } });
+    w.focus = () => inp.focus();
+    return w;
+  };
   const select = (opts, value, attrs = {}) => h('select', { class: 'inp', ...attrs }, opts.map(([v, l]) => h('option', { value: v, selected: String(v) === String(value) }, l)));
   const check = (label, checked, attrs = {}) => h('label', { class: 'chk' }, h('input', { type: 'checkbox', checked, ...attrs }), h('span', {}, label));
   const sevChip = s => h('span', { class: 'sev ' + String(s).toLowerCase() }, s);
   const empty = (msg, sub) => h('div', { class: 'empty' }, h('b', {}, msg), sub ? h('p', {}, sub) : null);
 
-  window.UI = { h, icon, toast, modal, confirmBox, dropdown, T, getLang, setLang, fmtTime, fmtDateTime, timeAgo, fmtBytes, fmtUptime, copyText, download, field, input, select, check, sevChip, empty };
+  window.UI = { h, icon, toast, modal, confirmBox, dropdown, T, getLang, setLang, fmtTime, fmtDateTime, timeAgo, fmtBytes, fmtUptime, copyText, download, field, input, pw, select, check, sevChip, empty };
 })();

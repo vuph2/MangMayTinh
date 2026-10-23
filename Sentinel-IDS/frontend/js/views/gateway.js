@@ -49,7 +49,7 @@
     const portI = input({ type: 'number', min: 1, max: 65535, value: st.tport || (tool && tool.port) || '', oninput: e => { st.tport = e.target.value; } });
     const urlI = input({ placeholder: 'https://example.com/path', value: st.url || '', oninput: e => { st.url = e.target.value; try { st.target = new URL(e.target.value).hostname; } catch { st.target = ''; } pathUpdate(); } });
     const userI = input({ placeholder: T('Tài khoản trên máy đích', 'Username on target'), value: st.user || '', oninput: e => { st.user = e.target.value; } });
-    const passI = input({ type: 'password', placeholder: T('Mật khẩu máy đích', 'Target password'), oninput: e => { st.pass = e.target.value; } });
+    const passI = UI.pw({ placeholder: T('Mật khẩu máy đích', 'Target password'), oninput: e => { st.pass = e.target.value; } });
 
     // Cong local
     const free = freeAllocated();

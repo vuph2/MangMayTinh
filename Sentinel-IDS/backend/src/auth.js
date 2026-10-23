@@ -1,6 +1,9 @@
 'use strict';
 /** Middleware xac thuc JWT + phan quyen theo role. */
 const { verifyJwt, randomToken } = require('./security/crypto');
+
+// Dinh danh moi lan chay backend: phien KHONG tick "tu dong dang nhap" chi song den khi backend duoc restart
+const BOOT_ID = randomToken(9);
 const users = require('./services/users');
 const settings = require('./services/settings');
 const { safeEqual } = require('./security/crypto');
@@ -12,6 +15,8 @@ function fromRequest(req) {
   if (!m) return null;
   const p = verifyJwt(m[1]);
   if (!p) return null;
+  if (!p.rem && p.bid !== BOOT_ID) return null;   // phien tam: het hieu luc khi backend khoi dong lai
+  req.claims = p;
   const u = users.byId(p.sub);
   if (!u || u.disabled || u.tokenVersion !== p.tv) return null;
   return u;
@@ -37,4 +42,4 @@ function checkIngestKey(req) {
   return !!k && safeEqual(k, settings.get().ingestKey);
 }
 
-module.exports = { fromRequest, issueTicket, consumeTicket, checkIngestKey };
+module.exports = { BOOT_ID, fromRequest, issueTicket, consumeTicket, checkIngestKey };

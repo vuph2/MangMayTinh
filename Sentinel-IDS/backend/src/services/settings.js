@@ -9,6 +9,7 @@ const defaults = () => ({
   autoBlock: { enabled: false, threshold: 5, windowSec: 60, durationSec: 3600 },
   incident: { autoCut: true, minSeverity: 'High', notifyTelegram: true },
   gateway: { maxLifetimeMin: 60, idleMin: 0, maxTunnelsPerUser: 5 },
+  security: { allowRegistration: true },
   healthIntervalSec: 5
 });
 
@@ -79,6 +80,7 @@ function update(body) {
     if (g.idleMin !== undefined) s.gateway.idleMin = num(g.idleMin, 0, 1440, 0);
     if (g.maxTunnelsPerUser !== undefined) s.gateway.maxTunnelsPerUser = num(g.maxTunnelsPerUser, 1, 100, 5);
   }
+  if (body.security && body.security.allowRegistration !== undefined) s.security.allowRegistration = !!body.security.allowRegistration;
   if (body.healthIntervalSec !== undefined) s.healthIntervalSec = num(body.healthIntervalSec, 2, 300, 5);
   col.save();
   return masked();

@@ -9,6 +9,7 @@ const HOST = process.env.HOST || '127.0.0.1';
 const API_BASE = process.env.API_BASE || '';   // vd: http://192.168.1.10:3000/api (de trong = tu dung cung hostname, cong 3000)
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
 const ROOT = __dirname;
+const BOOT = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
 http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split('?')[0]);
@@ -16,9 +17,13 @@ http.createServer((req, res) => {
   const file = path.normalize(path.join(ROOT, p));
   if (!file.startsWith(ROOT) || /[\\/](serve\.js|package\.json|node_modules)([\\/]|$)/.test(file.slice(ROOT.length))) { res.writeHead(403); return res.end('Forbidden'); }
   // config.js dong: cho phep doi API_BASE bang bien moi truong
-  if (p === '/js/config.js' && API_BASE) {
+  // + FRONTEND_BOOT: dinh danh moi lan chay Frontend (phien khong tick "tu dong dang nhap" se bi bo khi chay lai)
+  if (p === '/js/config.js') {
+    let base = 'window.SENTINEL_CONFIG = { API_BASE: "" };';
+    try { base = fs.readFileSync(path.join(ROOT, 'js', 'config.js'), 'utf8'); } catch {}
+    const extra = (API_BASE ? `\nwindow.SENTINEL_CONFIG.API_BASE = ${JSON.stringify(API_BASE)};` : '') + `\nwindow.SENTINEL_CONFIG.FRONTEND_BOOT = ${JSON.stringify(BOOT)};`;
     res.writeHead(200, { 'Content-Type': MIME['.js'], 'Cache-Control': 'no-store' });
-    return res.end(`window.SENTINEL_CONFIG = { API_BASE: ${JSON.stringify(API_BASE)} };`);
+    return res.end(base + extra);
   }
   fs.stat(file, (err, st) => {
     if (err || !st.isFile()) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('404'); }

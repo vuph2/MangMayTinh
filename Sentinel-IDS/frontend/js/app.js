@@ -10,47 +10,78 @@
   const setTheme = t => { localStorage.setItem('th', t); document.documentElement.setAttribute('data-theme', t); };
   setTheme(theme());
 
-  // ================= LOGIN =================
-  function showLogin(msg) {
+  // ================= LOGIN / REGISTER / FORGOT (cac trang nay KHONG phai hop thoai: boi den, copy/paste khong bi thoat) =================
+  function authCard(subtitle, ...kids) {
+    root.replaceChildren(h('div', { class: 'login' }, h('div', { class: 'card' },
+      h('h1', {}, icon('shield', 26), 'Sentinel IDS'),
+      h('p', { class: 'mut', style: { marginTop: 0 } }, subtitle), ...kids,
+      h('div', { class: 'row', style: { marginTop: '14px', justifyContent: 'space-between' } },
+        h('small', { class: 'mut' }, 'API: ' + API.base),
+        h('button', { class: 'btn sm', type: 'button', onclick: () => { UI.setLang(UI.getLang() === 'vi' ? 'en' : 'vi'); location.reload(); } }, UI.getLang() === 'vi' ? 'English' : 'Tiếng Việt')))));
+  }
+  const banner = (cls, text) => h('div', { class: 'banner ' + cls, style: { display: text ? 'flex' : 'none' } }, text || '');
+  const show = (el, cls, text) => { el.className = 'banner ' + cls; el.textContent = text; el.style.display = 'flex'; };
+  const wide = { width: '100%', justifyContent: 'center' };
+
+  async function showLogin(msg) {
     closeSse();
-    const u = input({ autocomplete: 'username', placeholder: 'username', autofocus: true });
-    const p = input({ type: 'password', autocomplete: 'current-password', placeholder: '••••••••' });
-    const err = h('div', { class: 'banner bad', style: { display: msg ? 'flex' : 'none' } }, msg || '');
+    let allowReg = false;
+    try { allowReg = (await API.get('/auth/options')).allowRegistration; } catch {}
+    const u = input({ autocomplete: 'username', placeholder: 'username' });
+    const p = UI.pw({ autocomplete: 'current-password', placeholder: '••••••••' });
+    const err = banner('bad', msg);
+    const rem = UI.check(T('Tự động đăng nhập (ghi nhớ trên máy này)', 'Keep me signed in (auto login)'), localStorage.getItem('sentinel_remember_pref') === '1');
+    const remBox = rem.querySelector('input');
     const go = async () => {
       err.style.display = 'none';
       try {
-        const r = await API.post('/auth/login', { username: u.value.trim(), password: p.value });
-        API.setToken(r.token); await boot();
-      } catch (e) { err.textContent = e.message; err.style.display = 'flex'; }
+        const r = await API.post('/auth/login', { username: u.value.trim(), password: p.value, remember: remBox.checked });
+        localStorage.setItem('sentinel_remember_pref', remBox.checked ? '1' : '0');
+        API.setToken(r.token, remBox.checked); await boot();
+      }
+      catch (e) { show(err, 'bad', e.message); }
     };
     p.addEventListener('keydown', e => e.key === 'Enter' && go());
     u.addEventListener('keydown', e => e.key === 'Enter' && p.focus());
-    root.replaceChildren(h('div', { class: 'login' }, h('div', { class: 'card' },
-      h('h1', {}, icon('shield', 26), 'Sentinel IDS'),
-      h('p', { class: 'mut', style: { marginTop: 0 } }, T('Đăng nhập để vào hệ thống giám sát an ninh mạng', 'Sign in to the network security monitor')),
-      err, field(T('Tên đăng nhập', 'Username'), u), field(T('Mật khẩu', 'Password'), p),
-      h('button', { class: 'btn primary', style: { width: '100%', justifyContent: 'center' }, onclick: go }, T('Đăng nhập', 'Sign in')),
-      h('div', { class: 'row', style: { marginTop: '14px', justifyContent: 'space-between' } },
-        h('small', { class: 'mut' }, 'API: ' + API.base),
-        h('button', { class: 'btn sm', onclick: () => { UI.setLang(UI.getLang() === 'vi' ? 'en' : 'vi'); showLogin(msg); } }, UI.getLang() === 'vi' ? 'English' : 'Tiếng Việt')))));
+    authCard(T('Đăng nhập để vào hệ thống giám sát an ninh mạng', 'Sign in to the network security monitor'), err,
+      field(T('Tên đăng nhập', 'Username'), u), field(T('Mật khẩu', 'Password'), p), rem,
+      h('button', { class: 'btn primary', type: 'button', style: Object.assign({ marginTop: '6px' }, wide), onclick: go }, T('Đăng nhập', 'Sign in')),
+      h('div', { class: 'auth-links' }, h('a', { onclick: showForgot }, T('Quên mật khẩu?', 'Forgot password?')), allowReg ? h('a', { onclick: showRegister }, T('Đăng ký tài khoản', 'Create account')) : null));
     setTimeout(() => u.focus(), 50);
   }
 
-  function forcePasswordChange() {
-    if (document.getElementById('force-pw')) return;
-    const o = input({ type: 'password' }), n = input({ type: 'password' }), n2 = input({ type: 'password' });
-    const err = h('div', { class: 'banner bad', style: { display: 'none' } });
-    const m = modal({
-      title: T('Bạn cần đổi mật khẩu để tiếp tục', 'You must change your password'),
-      body: h('div', { id: 'force-pw' }, err, field(T('Mật khẩu hiện tại', 'Current password'), o), field(T('Mật khẩu mới (≥8 ký tự, có chữ và số)', 'New password (8+ chars, letters and digits)'), n), field(T('Nhập lại mật khẩu mới', 'Repeat new password'), n2)),
-      onClose: () => { if (S.me && S.me.mustChangePassword) logout(); },
-      actions: [{ label: T('Đổi mật khẩu', 'Change password'), primary: true, close: false, onClick: async (e, close) => {
-        if (n.value !== n2.value) { err.textContent = T('Mật khẩu nhập lại không khớp', 'Passwords do not match'); err.style.display = 'flex'; return false; }
-        try { const r = await API.post('/auth/change-password', { oldPassword: o.value, newPassword: n.value }); API.setToken(r.token); S.me = r.user; toast(T('Đã đổi mật khẩu', 'Password changed'), 'ok'); m.close(); await boot(); }
-        catch (e2) { err.textContent = e2.message; err.style.display = 'flex'; }
-        return false;
-      } }]
-    });
+  function showRegister() {
+    const u = input({ autocomplete: 'username', placeholder: 'username' }), dn = input({ placeholder: T('Tên hiển thị (tuỳ chọn)', 'Display name (optional)') }), em = input({ type: 'email', placeholder: 'Email (' + T('tuỳ chọn', 'optional') + ')' });
+    const p1 = UI.pw({ autocomplete: 'new-password' }), p2 = UI.pw({ autocomplete: 'new-password' });
+    const msg = banner('bad', '');
+    const go = async () => {
+      if (p1.value !== p2.value) return show(msg, 'bad', T('Mật khẩu nhập lại không khớp', 'Passwords do not match'));
+      try {
+        await API.post('/auth/register', { username: u.value.trim(), password: p1.value, displayName: dn.value, email: em.value });
+        authCard(T('Đăng ký thành công', 'Registration sent'), banner('ok', T('Tài khoản đã được tạo và đang CHỜ ADMIN DUYỆT. Sau khi được duyệt bạn có thể đăng nhập.', 'Your account is awaiting admin approval. You can sign in once approved.')),
+          h('button', { class: 'btn primary', type: 'button', style: wide, onclick: () => showLogin() }, T('Về trang đăng nhập', 'Back to sign in')));
+      } catch (e) { show(msg, 'bad', e.message); }
+    };
+    authCard(T('Tạo tài khoản mới (cần admin duyệt)', 'Create an account (admin approval required)'), msg,
+      field(T('Tên đăng nhập', 'Username'), u, T('3-32 ký tự: chữ, số, _ . -', '3-32 chars: letters, digits, _ . -')), field(T('Tên hiển thị', 'Display name'), dn), field('Email', em),
+      field(T('Mật khẩu (≥8 ký tự, có chữ và số)', 'Password (8+ chars, letters and digits)'), p1), field(T('Nhập lại mật khẩu', 'Repeat password'), p2),
+      h('button', { class: 'btn primary', type: 'button', style: wide, onclick: go }, T('Đăng ký', 'Register')),
+      h('div', { class: 'auth-links' }, h('a', { onclick: () => showLogin() }, '← ' + T('Về đăng nhập', 'Back to sign in'))));
+  }
+
+  function showForgot() {
+    const u = input({ autocomplete: 'username', placeholder: 'username' });
+    const msg = banner('ok', '');
+    const go = async () => {
+      try { await API.post('/auth/forgot', { username: u.value.trim() }); show(msg, 'ok', T('Nếu tài khoản tồn tại, yêu cầu đặt lại mật khẩu đã được gửi tới admin. Admin sẽ cấp mật khẩu tạm cho bạn.', 'If the account exists, a reset request was sent to the admin, who will give you a temporary password.')); }
+      catch (e) { show(msg, 'bad', e.message); }
+    };
+    u.addEventListener('keydown', e => e.key === 'Enter' && go());
+    authCard(T('Quên mật khẩu', 'Forgot password'), msg,
+      h('p', { class: 'mut', style: { fontSize: '13px' } }, T('Nhập tên đăng nhập. Hệ thống không có email nên yêu cầu sẽ gửi cho admin (kèm thông báo Telegram nếu đã cấu hình).', 'Enter your username. The request goes to an admin (and Telegram if configured).')),
+      field(T('Tên đăng nhập', 'Username'), u), h('button', { class: 'btn primary', type: 'button', style: wide, onclick: go }, T('Gửi yêu cầu', 'Send request')),
+      h('div', { class: 'auth-links' }, h('a', { onclick: () => showLogin() }, '← ' + T('Về đăng nhập', 'Back to sign in'))));
+    setTimeout(() => u.focus(), 50);
   }
 
   async function logout() {
@@ -140,6 +171,8 @@
       on('ip_blocked', e => { S.blocklist = [e, ...S.blocklist.filter(b => b.ip !== e.ip)]; });
       on('ip_unblocked', e => { S.blocklist = S.blocklist.filter(b => b.ip !== e.ip); });
       on('rules_updated', r => { S.rules = r; });
+      on('user_pending', d => toast('🆕 ' + T('Tài khoản chờ duyệt: ', 'Account awaiting approval: ') + d.username, 'warn', 7000));
+      on('reset_requested', d => toast('🔑 ' + d.username + T(' yêu cầu đặt lại mật khẩu', ' requested a password reset'), 'warn', 7000));
     } catch { if (S.me) setTimeout(openSse, 4000); }
   }
 
@@ -150,7 +183,6 @@
       const me = await API.get('/auth/me');
       S.me = me.user; S.policy = me.policy;
       layout();
-      if (S.me.mustChangePassword) { forcePasswordChange(); return; }
       await loadAll(); await openSse();
       if (!location.hash) location.hash = '#/dashboard';
       renderView();
@@ -159,8 +191,8 @@
       else showLogin(e.message);
     }
   }
-  API.on(() => { API.setToken(null); S.me = null; showLogin(T('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', 'Session expired, please sign in again')); }, forcePasswordChange);
-  window.addEventListener('hashchange', () => S.me && !S.me.mustChangePassword && renderView());
+  API.on(() => { API.setToken(null); S.me = null; showLogin(T('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', 'Session expired, please sign in again')); }, () => {});
+  window.addEventListener('hashchange', () => S.me && renderView());
   setInterval(() => { const v = window.Views[S.route]; if (S.me && v && v.tick) v.tick(); }, 1000);
   boot();
 })();

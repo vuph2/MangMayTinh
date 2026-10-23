@@ -3,11 +3,15 @@
   const cfg = window.SENTINEL_CONFIG || {};
   const API_BASE = cfg.API_BASE || `${location.protocol}//${location.hostname}:3000/api`;
   const TOKEN_KEY = 'sentinel_token';
+  const BOOT_KEY = 'sentinel_fboot';
+  // Phien KHONG tick "tu dong dang nhap" nam trong sessionStorage (mat khi dong tab) va bi bo neu Frontend duoc chay lai.
+  if (sessionStorage.getItem(TOKEN_KEY) && cfg.FRONTEND_BOOT && sessionStorage.getItem(BOOT_KEY) !== cfg.FRONTEND_BOOT) sessionStorage.removeItem(TOKEN_KEY);
+  const getToken = () => sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
   let onAuthLost = () => {}, onMustChange = () => {};
 
   async function req(method, path, body) {
     const headers = {};
-    const t = localStorage.getItem(TOKEN_KEY);
+    const t = getToken();
     if (t) headers.Authorization = 'Bearer ' + t;
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     let res;
@@ -27,8 +31,15 @@
     host: new URL(API_BASE).hostname,
     get: p => req('GET', p), post: (p, b) => req('POST', p, b || {}), put: (p, b) => req('PUT', p, b || {}),
     patch: (p, b) => req('PATCH', p, b || {}), del: p => req('DELETE', p),
-    setToken: t => t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY),
-    hasToken: () => !!localStorage.getItem(TOKEN_KEY),
+    // remember: true -> localStorage (tu dong dang nhap), false -> sessionStorage, undefined -> giu nguyen noi dang luu
+    setToken(t, remember) {
+      if (!t) { localStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(TOKEN_KEY); return; }
+      if (remember === undefined) remember = !sessionStorage.getItem(TOKEN_KEY) && !!localStorage.getItem(TOKEN_KEY);
+      localStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(TOKEN_KEY);
+      if (remember) localStorage.setItem(TOKEN_KEY, t);
+      else { sessionStorage.setItem(TOKEN_KEY, t); if (cfg.FRONTEND_BOOT) sessionStorage.setItem(BOOT_KEY, cfg.FRONTEND_BOOT); }
+    },
+    hasToken: () => !!getToken(),
     on(authLost, mustChange) { onAuthLost = authLost; onMustChange = mustChange; },
     async ticket() { return (await req('POST', '/auth/ticket', {})).ticket; }
   };

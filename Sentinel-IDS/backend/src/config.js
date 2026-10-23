@@ -19,7 +19,9 @@ module.exports = {
   FRONTEND_PORT: parseInt(process.env.FRONTEND_PORT, 10) || 5173,
   FRONTEND_ORIGINS: (process.env.FRONTEND_ORIGIN || 'http://localhost:5173,http://127.0.0.1:5173').split(',').map(s => s.trim()).filter(Boolean),
   ADMIN_USERNAME: process.env.ADMIN_USERNAME || 'admin',
-  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || '',
+  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || 'admin1234',
+  // true = moi lan khoi dong backend se ep tai khoan admin ve dung ADMIN_USERNAME / ADMIN_PASSWORD (mac dinh admin / admin1234)
+  ADMIN_FORCE: !['false', '0', 'no'].includes(String(process.env.ADMIN_FORCE || 'true').toLowerCase()),
   APP_SECRET: process.env.APP_SECRET || '',
   DATA_DIR: process.env.DATA_DIR || path.join(__dirname, '..', 'data'),
   TOKEN_TTL_SEC: 8 * 3600,

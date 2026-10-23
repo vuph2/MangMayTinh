@@ -76,6 +76,24 @@ const get = (p, t) => call('GET', p, null, t), post = (p, b, t) => call('POST', 
   r = await post('/vms', { name: 'x', ip: '1.1.1.1' }, U); ok(r.status === 403, 'User khong tao duoc VM');
   r = await get('/vms', U); ok(r.status === 200, 'User xem VM'); 
 
+  console.log('\n[1b] Dang ky / quen mat khau / khong ep doi mat khau');
+  r = await get('/auth/options'); ok(r.body.allowRegistration === true, 'Trang dang nhap biet duoc phep dang ky');
+  r = await post('/auth/register', { username: 'carol', password: 'carol12345' }); ok(r.status === 200 && r.body.pending, 'Dang ky tu do -> cho duyet');
+  r = await post('/auth/login', { username: 'carol', password: 'carol12345' }); ok(r.status === 403, 'Chua duyet -> khong dang nhap duoc');
+  r = await post('/auth/register', { username: 'carol', password: 'carol12345' }); ok(r.status === 409, 'Dang ky trung username -> 409');
+  const carol = (await get('/users', A)).body.find(u => u.username === 'carol');
+  r = await post(`/users/${carol.id}/approve`, {}, A); ok(r.status === 200, 'Admin duyet tai khoan');
+  r = await post('/auth/login', { username: 'carol', password: 'carol12345' }); ok(r.status === 200, 'Sau khi duyet dang nhap duoc, KHONG bi ep doi mat khau');
+  r = await get('/vms', r.body.token); ok(r.status === 200, 'Dung duoc API ngay (khong chan MUST_CHANGE_PASSWORD)');
+  const f1 = await post('/auth/forgot', { username: 'carol' }), f2 = await post('/auth/forgot', { username: 'khong-ton-tai' });
+  ok(f1.status === 200 && f2.status === 200 && JSON.stringify(f1.body) === JSON.stringify(f2.body), 'Quen mat khau: tra loi giong nhau (khong lo user co ton tai)');
+  ok((await get('/users', A)).body.find(u => u.username === 'carol').resetRequestedAt > 0, 'Admin thay yeu cau dat lai mat khau');
+  r = await post(`/users/${carol.id}/reset-password`, {}, A); ok(r.status === 200 && r.body.password, 'Admin cap mat khau tam');
+  r = await post('/auth/login', { username: 'carol', password: r.body.password }); ok(r.status === 200, 'Dang nhap bang mat khau tam, khong bi ep doi');
+  await call('PUT', '/settings', { security: { allowRegistration: false } }, A);
+  r = await post('/auth/register', { username: 'dave', password: 'dave123456' }); ok(r.status === 403, 'Admin tat dang ky -> 403');
+  await call('PUT', '/settings', { security: { allowRegistration: true } }, A);
+
   console.log('\n[2] VM + health + metrics that');
   r = await post('/vms', { name: 'gw-vm', ip: '127.0.0.1', sshPort: SSH_PORT, sshUser: 'vm', sshPass: 'pw', roles: ['gateway', 'sensor', 'victim'], logPath: '/var/log/suricata/fast.log' }, A);
   ok(r.status === 200 && !('sshPassEnc' in r.body) && !JSON.stringify(r.body).includes('"pw"'), 'Tao VM, khong lo mat khau');

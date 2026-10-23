@@ -140,7 +140,9 @@ node scripts/test_traffic.js
 
 ---
 
-#### 5.4 Lệnh kiểm thử & Dấu hiệu thành công
+#### 5.4 Lệnh kiểm thử & Dấu hiệu thành côngcd "C:\Users\pc\Desktop\Mang may tinh DACN\Sentinel-IDS-v2\Sentinel-IDS\backend"
+npm install
+npm start
 1. Trên Kali bắn lệnh quét Nmap:
    ```bash
    nmap -sS -sV 192.168.56.102

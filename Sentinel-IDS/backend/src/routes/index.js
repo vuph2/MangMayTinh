@@ -24,6 +24,8 @@ const events = require('../services/events');
 const r = new Router();
 const ADMIN = { auth: true, roles: ['admin'] };
 const USER = { auth: true };
+// remember=true: tu dong dang nhap 30 ngay (song qua restart). Nguoc lai: 8 gio va chi hieu luc den khi backend restart.
+const issueToken = (u, remember) => signJwt({ sub: u.id, role: u.role, tv: u.tokenVersion, rem: !!remember, bid: remember ? undefined : A.BOOT_ID }, remember ? 30 * 86400 : cfg.TOKEN_TTL_SEC);
 const str = (v, max = 200) => String(v === undefined || v === null ? '' : v).slice(0, max);
 
 // ======================= AUTH =======================
@@ -33,10 +35,31 @@ r.post('/auth/login', async ({ req, body }) => {
   const ip = clientIp(req);
   rateLimit('login:' + ip, 20, 10 * 60000);
   const u = users.authenticate(str(body.username, 64), str(body.password, 200));
-  audit.log(u, 'auth.login', '', ip);
-  return { token: signJwt({ sub: u.id, role: u.role, tv: u.tokenVersion }), user: users.publicUser(u) };
+  const remember = body.remember === true;
+  audit.log(u, 'auth.login', remember ? 'remember' : '', ip);
+  return { token: issueToken(u, remember), remember, user: users.publicUser(u) };
 });
 r.post('/auth/logout', USER, ({ user, req }) => { user.tokenVersion++; audit.log(user, 'auth.logout', '', clientIp(req)); return { ok: true }; });
+r.get('/auth/options', () => ({ allowRegistration: !!settings.get().security.allowRegistration }));
+r.post('/auth/register', ({ req, body }) => {
+  rateLimit('reg:' + clientIp(req), 5, 3600000);
+  if (!settings.get().security.allowRegistration) throw new HttpError(403, 'Admin da tat chuc nang dang ky');
+  const u = users.register({ username: str(body.username, 64), password: str(body.password, 200), displayName: str(body.displayName, 64), email: str(body.email, 120) });
+  audit.log(u, 'auth.register', 'cho admin duyet', clientIp(req));
+  events.emit('user_pending', { username: u.username, ts: Date.now() }, { role: 'admin' });
+  telegram.notify(`🆕 Tai khoan moi cho duyet: ${u.username}`);
+  return { ok: true, pending: true };
+});
+r.post('/auth/forgot', ({ req, body }) => {
+  rateLimit('forgot:' + clientIp(req), 5, 3600000);
+  const u = users.requestReset(str(body.username, 64));
+  if (u && !u.pending) {
+    audit.log(u, 'auth.forgot', 'yeu cau dat lai mat khau', clientIp(req));
+    events.emit('reset_requested', { username: u.username, ts: Date.now() }, { role: 'admin' });
+    telegram.notify(`🔑 ${u.username} yeu cau dat lai mat khau`);
+  }
+  return { ok: true };   // luon tra loi giong nhau, khong lo user co ton tai hay khong
+});
 r.get('/auth/me', USER, ({ user }) => ({ user: users.publicUser(user), policy: policy.describe(user) }));
 r.post('/auth/change-password', USER, ({ user, body, req }) => {
   rateLimit('chpw:' + user.id, 10, 10 * 60000);
@@ -44,7 +67,8 @@ r.post('/auth/change-password', USER, ({ user, body, req }) => {
   if (!verifyPassword(str(body.oldPassword), user.passwordHash)) throw new HttpError(403, 'Mat khau hien tai khong dung');
   users.setPassword(user.id, str(body.newPassword, 200), false);
   audit.log(user, 'auth.change-password', '', clientIp(req));
-  return { token: signJwt({ sub: user.id, role: user.role, tv: user.tokenVersion }), user: users.publicUser(user) };
+  const remember = !!(req.claims && req.claims.rem);
+  return { token: issueToken(user, remember), remember, user: users.publicUser(user) };
 });
 r.patch('/auth/profile', USER, ({ user, body }) => ({ user: users.publicUser(users.update(user.id, body, { self: true })) }));
 r.post('/auth/ticket', USER, ({ user }) => ({ ticket: A.issueTicket(user) }));
@@ -52,7 +76,7 @@ r.post('/auth/ticket', USER, ({ user }) => ({ ticket: A.issueTicket(user) }));
 // ======================= ADMIN: USERS =======================
 r.get('/users', ADMIN, () => users.list());
 r.post('/users', ADMIN, ({ user, body }) => {
-  const u = users.create({ ...body, username: str(body.username, 64), password: str(body.password, 200), mustChangePassword: body.mustChangePassword !== false });
+  const u = users.create({ ...body, username: str(body.username, 64), password: str(body.password, 200), mustChangePassword: false });
   audit.log(user, 'user.create', `${u.username} (${u.role})`);
   return users.publicUser(u);
 });
@@ -67,8 +91,9 @@ r.post('/users/:id/reset-password', ADMIN, ({ user, params, body }) => {
   const pw = body.password ? str(body.password, 200) : users.randomPassword();
   const u = users.setPassword(params.id, pw, true);
   audit.log(user, 'user.reset-password', u.username);
-  return { ok: true, username: u.username, password: pw, mustChangePassword: true };
+  return { ok: true, username: u.username, password: pw };
 });
+r.post('/users/:id/approve', ADMIN, ({ user, params }) => { const u = users.approve(params.id); audit.log(user, 'user.approve', u.username); return users.publicUser(u); });
 r.post('/users/:id/unlock', ADMIN, ({ user, params }) => { const u = users.byId(params.id); if (!u) throw new HttpError(404, 'Khong tim thay user'); u.lockedUntil = 0; u.failedLogins = 0; audit.log(user, 'user.unlock', u.username); return users.publicUser(u); });
 r.delete('/users/:id', ADMIN, ({ user, params }) => {
   if (params.id === user.id) throw new HttpError(400, 'Khong the tu xoa chinh minh');

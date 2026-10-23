@@ -6,7 +6,7 @@
     async render(root) {
       const me = (await API.get('/auth/me')).user; S.me = me;
       const dn = input({ value: me.displayName || '' }), em = input({ value: me.email || '' }), tg = input({ value: me.telegramChatId || '', placeholder: T('Chat ID Telegram của bạn', 'Your Telegram chat ID') });
-      const o = input({ type: 'password' }), n = input({ type: 'password' }), n2 = input({ type: 'password' }), pmsg = h('div');
+      const o = UI.pw(), n = UI.pw(), n2 = UI.pw(), pmsg = h('div');
       const sessions = (await API.get('/gateway/tunnels')).filter(t => t.running);
       root.replaceChildren(
         h('div', { class: 'page-h' }, h('h2', {}, T('Tài khoản của tôi', 'My account')), h('span', { class: 'chip' }, me.role)),

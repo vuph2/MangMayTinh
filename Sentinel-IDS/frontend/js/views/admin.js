@@ -11,11 +11,12 @@
     const rows = list.map(u => h('tr', {},
       h('td', {}, h('b', {}, u.username), h('br'), h('small', { class: 'mut' }, u.displayName || '')),
       h('td', {}, h('span', { class: 'chip ' + (u.role === 'admin' ? 'pri' : '') }, u.role)),
-      h('td', {}, u.disabled ? h('span', { class: 'chip bad' }, T('Bị khoá', 'Disabled')) : u.lockedUntil > Date.now() ? h('span', { class: 'chip warn' }, T('Khoá tạm', 'Locked')) : h('span', { class: 'chip ok' }, T('Hoạt động', 'Active')), u.mustChangePassword ? h('span', { class: 'chip warn' }, T('Chờ đổi MK', 'Must change pw')) : null),
+      h('td', {}, u.pending ? h('span', { class: 'chip warn' }, T('Chờ duyệt', 'Pending')) : u.disabled ? h('span', { class: 'chip bad' }, T('Bị khoá', 'Disabled')) : u.lockedUntil > Date.now() ? h('span', { class: 'chip warn' }, T('Khoá tạm', 'Locked')) : h('span', { class: 'chip ok' }, T('Hoạt động', 'Active')), u.resetRequestedAt ? h('span', { class: 'chip warn', title: timeAgo(u.resetRequestedAt) }, '🔑 ' + T('Xin đặt lại MK', 'Reset requested')) : null),
       h('td', { class: 'mono' }, (u.portPolicy.allocated || []).join(', ') || '—'), h('td', {}, u.lastLoginAt ? timeAgo(u.lastLoginAt) : '—'),
       h('td', { class: 'act' },
         h('button', { class: 'btn sm', onclick: () => userModal(u, draw) }, icon('edit', 14), T('Sửa', 'Edit')), ' ',
-        h('button', { class: 'btn sm', onclick: async () => { if (!await confirmBox(T(`Đặt lại mật khẩu của ${u.username}?`, `Reset ${u.username}'s password?`), T('Đặt lại', 'Reset'), false)) return; try { const r = await API.post(`/users/${u.id}/reset-password`, {}); modal({ title: T('Mật khẩu tạm thời', 'Temporary password'), body: h('div', {}, h('p', {}, T('Chỉ hiển thị một lần. User sẽ phải đổi khi đăng nhập.', 'Shown once. The user must change it at next login.')), h('pre', { class: 'pl mono' }, r.password)), actions: [{ label: T('Sao chép', 'Copy'), close: false, onClick: () => copyText(r.password) }, { label: 'OK', primary: true }] }); } catch (e) { err(e.message); } } }, icon('key', 14)), ' ',
+        h('button', { class: 'btn sm', onclick: async () => { if (!await confirmBox(T(`Đặt lại mật khẩu của ${u.username}?`, `Reset ${u.username}'s password?`), T('Đặt lại', 'Reset'), false)) return; try { const r = await API.post(`/users/${u.id}/reset-password`, {}); modal({ title: T('Mật khẩu tạm thời', 'Temporary password'), body: h('div', {}, h('p', {}, T('Chỉ hiển thị một lần. Hãy gửi mật khẩu này cho user (user có thể tự đổi trong mục Tài khoản).', 'Shown once. Give it to the user (they can change it under Account).')), h('pre', { class: 'pl mono' }, r.password)), actions: [{ label: T('Sao chép', 'Copy'), close: false, onClick: () => copyText(r.password) }, { label: 'OK', primary: true }] }); } catch (e) { err(e.message); } } }, icon('key', 14)), ' ',
+        u.pending ? h('button', { class: 'btn sm primary', onclick: async () => { await API.post(`/users/${u.id}/approve`); draw(); } }, T('Duyệt', 'Approve')) : null, ' ',
         u.lockedUntil > Date.now() ? h('button', { class: 'btn sm', onclick: async () => { await API.post(`/users/${u.id}/unlock`); draw(); } }, T('Mở khoá', 'Unlock')) : null, ' ',
         u.id !== S.me.id ? h('button', { class: 'btn sm', onclick: async () => { if (await confirmBox(T(`Xoá user ${u.username}? Các kết nối Gateway của họ cũng bị xoá.`, `Delete ${u.username}?`))) { try { await API.del('/users/' + u.id); draw(); } catch (e) { err(e.message); } } } }, icon('trash', 14)) : null)));
     root.replaceChildren(page(T('Quản lý tài khoản User', 'User accounts'), T('Admin tạo, khoá, đổi quyền, cấp cổng cho từng user.', 'Create, disable, change roles and allocate ports.'),
@@ -25,7 +26,7 @@
 
   function userModal(u, done) {
     const pol = u ? u.portPolicy : { allocated: ['8080-8089'], privateAllowed: true, privateRange: '20000-20999', maxTunnels: 5, allowCustomTarget: true };
-    const un = input({ value: u ? u.username : '', disabled: !!u }), pw = input({ type: 'password', placeholder: u ? '' : T('≥8 ký tự, có chữ và số', '8+ chars, letters and digits') }), dn = input({ value: u ? u.displayName : '' }), em = input({ value: u ? u.email : '' });
+    const un = input({ value: u ? u.username : '', disabled: !!u }), pw = UI.pw({ placeholder: u ? '' : T('≥8 ký tự, có chữ và số', '8+ chars, letters and digits') }), dn = input({ value: u ? u.displayName : '' }), em = input({ value: u ? u.email : '' });
     const role = select([['user', 'user'], ['admin', 'admin']], u ? u.role : 'user'), tg = input({ value: u ? u.telegramChatId : '' });
     const alloc = input({ value: (pol.allocated || []).join(', '), placeholder: '8080-8089, 9000' }), priv = check(T('Cho phép tự thêm cổng private', 'Allow private ports'), pol.privateAllowed), privR = input({ value: pol.privateRange }), max = input({ type: 'number', value: pol.maxTunnels });
     const cust = check(T('Cho phép nhập host/website tuỳ ý', 'Allow custom targets'), pol.allowCustomTarget), dis = check(T('Khoá tài khoản', 'Disable account'), u ? u.disabled : false);
@@ -63,10 +64,10 @@
   function vmModal(v, done) {
     const f = {
       name: input({ value: v ? v.name : '' }), ip: input({ value: v ? v.ip : '', placeholder: '192.168.56.102' }), sshPort: input({ type: 'number', value: v ? v.sshPort : 22 }), sshUser: input({ value: v ? v.sshUser : '' }),
-      sshPass: input({ type: 'password', placeholder: v && v.hasSshPass ? T('(giữ nguyên nếu để trống)', '(unchanged if empty)') : '' }),
+      sshPass: UI.pw({ placeholder: v && v.hasSshPass ? T('(giữ nguyên nếu để trống)', '(unchanged if empty)') : '' }),
       sshKey: h('textarea', { class: 'inp mono', rows: 3, placeholder: v && v.hasSshKey ? T('(đã có khoá — để trống để giữ nguyên)', '(key set — leave empty to keep)') : '-----BEGIN OPENSSH PRIVATE KEY-----' }),
       sudoMode: select([['password', T('sudo cần mật khẩu', 'sudo needs password')], ['nopasswd', T('sudo không cần mật khẩu (NOPASSWD)', 'passwordless sudo')]], v ? v.sudoMode : 'password'),
-      sudoPass: input({ type: 'password', placeholder: T('Trống = dùng mật khẩu SSH', 'Empty = SSH password') }), healthPort: input({ type: 'number', value: v ? v.healthPort || '' : '', placeholder: T('Trống = cổng SSH', 'Empty = SSH port') }),
+      sudoPass: UI.pw({ placeholder: T('Trống = dùng mật khẩu SSH', 'Empty = SSH password') }), healthPort: input({ type: 'number', value: v ? v.healthPort || '' : '', placeholder: T('Trống = cổng SSH', 'Empty = SSH port') }),
       logPath: input({ value: v ? v.logPath : '/var/log/suricata/fast.log' }), os: input({ value: v ? v.os : '' }), notes: input({ value: v ? v.notes : '' })
     };
     const roles = Object.keys(ROLE_INFO).map(r => check(ROLE_INFO[r], v ? (v.roles || []).includes(r) : r === 'gateway', { 'data-role': r }));
@@ -103,11 +104,12 @@
     const s = await API.get('/settings'), key = (await API.get('/settings/ingest-key')).ingestKey;
     const tg = s.telegram, w = s.wazuh, ab = s.autoBlock, inc = s.incident, g = s.gateway;
     const f = {
-      tgEn: check(T('Bật gửi cảnh báo Telegram', 'Enable Telegram alerts'), tg.enabled), tgTok: input({ type: 'password', placeholder: tg.hasToken ? T('(đã lưu — để trống để giữ)', '(saved — empty to keep)') : '123456:ABC…' }), tgChat: input({ value: tg.chatId }), tgSev: select([['High', 'High'], ['Medium', 'Medium+'], ['Low', 'Low+']], tg.minSeverity),
-      wEn: check(T('Bật đồng bộ cảnh báo từ Wazuh Indexer', 'Sync alerts from Wazuh Indexer'), w.enabled), wHost: input({ value: w.host, placeholder: '192.168.56.103' }), wApiPort: input({ type: 'number', value: w.apiPort }), wApiUser: input({ value: w.apiUser }), wApiPass: input({ type: 'password', placeholder: w.hasApiPass ? T('(đã lưu)', '(saved)') : '' }),
-      wIdxPort: input({ type: 'number', value: w.indexerPort }), wIdxUser: input({ value: w.indexerUser }), wIdxPass: input({ type: 'password', placeholder: w.hasIndexerPass ? T('(đã lưu)', '(saved)') : '' }), wTls: check(T('Kiểm tra chứng chỉ TLS (tắt nếu Wazuh dùng chứng chỉ tự ký)', 'Verify TLS cert'), w.verifyTLS), wPoll: input({ type: 'number', value: w.pollSec }),
+      tgEn: check(T('Bật gửi cảnh báo Telegram', 'Enable Telegram alerts'), tg.enabled), tgTok: UI.pw({ placeholder: tg.hasToken ? T('(đã lưu — để trống để giữ)', '(saved — empty to keep)') : '123456:ABC…' }), tgChat: input({ value: tg.chatId }), tgSev: select([['High', 'High'], ['Medium', 'Medium+'], ['Low', 'Low+']], tg.minSeverity),
+      wEn: check(T('Bật đồng bộ cảnh báo từ Wazuh Indexer', 'Sync alerts from Wazuh Indexer'), w.enabled), wHost: input({ value: w.host, placeholder: '192.168.56.103' }), wApiPort: input({ type: 'number', value: w.apiPort }), wApiUser: input({ value: w.apiUser }), wApiPass: UI.pw({ placeholder: w.hasApiPass ? T('(đã lưu)', '(saved)') : '' }),
+      wIdxPort: input({ type: 'number', value: w.indexerPort }), wIdxUser: input({ value: w.indexerUser }), wIdxPass: UI.pw({ placeholder: w.hasIndexerPass ? T('(đã lưu)', '(saved)') : '' }), wTls: check(T('Kiểm tra chứng chỉ TLS (tắt nếu Wazuh dùng chứng chỉ tự ký)', 'Verify TLS cert'), w.verifyTLS), wPoll: input({ type: 'number', value: w.pollSec }),
       abEn: check(T('Tự động chặn IP khi lặp lại nhiều lần', 'Auto-block repeat offenders'), ab.enabled), abTh: input({ type: 'number', value: ab.threshold }), abWin: input({ type: 'number', value: ab.windowSec }), abDur: input({ type: 'number', value: ab.durationSec }),
       incCut: check(T('Tự động NGẮT kết nối Gateway liên quan khi có sự cố', 'Auto-cut related gateway links on incident'), inc.autoCut), incSev: select([['High', 'High'], ['Medium', 'Medium+'], ['Low', 'Low+']], inc.minSeverity),
+      allowReg: check(T('Cho phép người dùng tự đăng ký (cần admin duyệt)', 'Allow self-registration (admin approval)'), (s.security || {}).allowRegistration !== false),
       gLife: input({ type: 'number', value: g.maxLifetimeMin }), gIdle: input({ type: 'number', value: g.idleMin }), gMax: input({ type: 'number', value: g.maxTunnelsPerUser }), health: input({ type: 'number', value: s.healthIntervalSec })
     };
     const v = c => c.querySelector('input').checked;
@@ -118,7 +120,7 @@
           wazuh: { enabled: v(f.wEn), host: f.wHost.value, apiPort: f.wApiPort.value, apiUser: f.wApiUser.value, apiPass: f.wApiPass.value, indexerPort: f.wIdxPort.value, indexerUser: f.wIdxUser.value, indexerPass: f.wIdxPass.value, verifyTLS: v(f.wTls), pollSec: f.wPoll.value },
           autoBlock: { enabled: v(f.abEn), threshold: f.abTh.value, windowSec: f.abWin.value, durationSec: f.abDur.value },
           incident: { autoCut: v(f.incCut), minSeverity: f.incSev.value },
-          gateway: { maxLifetimeMin: f.gLife.value, idleMin: f.gIdle.value, maxTunnelsPerUser: f.gMax.value }, healthIntervalSec: f.health.value });
+          security: { allowRegistration: v(f.allowReg) }, gateway: { maxLifetimeMin: f.gLife.value, idleMin: f.gIdle.value, maxTunnelsPerUser: f.gMax.value }, healthIntervalSec: f.health.value });
         toast(T('Đã lưu cài đặt', 'Settings saved'), 'ok'); systemView(root);
       } catch (e) { err(e.message); }
     };
@@ -129,6 +131,7 @@
           h('button', { class: 'btn', onclick: async () => { try { await API.post('/settings/telegram-test', { token: f.tgTok.value, chatId: f.tgChat.value }); toast(T('Đã gửi tin nhắn Telegram thật', 'Real Telegram message sent'), 'ok'); } catch (e) { err(e.message); } } }, T('Gửi tin thử (thật)', 'Send real test'))),
         h('div', { class: 'card' }, h('h3', {}, 'Wazuh'), f.wEn, h('div', { class: 'form-grid' }, field('Host/IP Wazuh', f.wHost), field(T('Chu kỳ đồng bộ (giây)', 'Poll (s)'), f.wPoll), field('API port', f.wApiPort), field('API user', f.wApiUser), field('API password', f.wApiPass), field('Indexer port', f.wIdxPort), field('Indexer user', f.wIdxUser), field('Indexer password', f.wIdxPass)), f.wTls),
         h('div', { class: 'card' }, h('h3', {}, T('Xử lý sự cố', 'Incident response')), f.incCut, field(T('Ngắt khi mức ≥', 'Cut when ≥'), f.incSev), f.abEn, h('div', { class: 'form-grid' }, field(T('Ngưỡng số cảnh báo', 'Threshold'), f.abTh), field(T('Trong (giây)', 'Window (s)'), f.abWin), field(T('Chặn trong (giây, 0=vĩnh viễn)', 'Block for (s, 0=forever)'), f.abDur))),
+        h('div', { class: 'card' }, h('h3', {}, T('Tài khoản', 'Accounts')), f.allowReg),
         h('div', { class: 'card' }, h('h3', {}, 'Gateway'), h('div', { class: 'form-grid' }, field(T('Thời gian tối đa mỗi kết nối (phút, 0=không giới hạn)', 'Max lifetime (min, 0=∞)'), f.gLife), field(T('Ngắt khi rảnh (phút, 0=tắt)', 'Idle cut (min, 0=off)'), f.gIdle), field(T('Số kết nối tối đa / user', 'Max links per user'), f.gMax), field(T('Chu kỳ health-check (giây)', 'Health interval (s)'), f.health))),
         h('div', { class: 'card' }, h('h3', {}, T('Khoá đẩy log từ máy ngoài (X-Ingest-Key)', 'Ingest key')), h('pre', { class: 'pl mono' }, key), h('pre', { class: 'pl mono' }, ingest),
           h('div', { class: 'row' }, h('button', { class: 'btn sm', onclick: () => copyText(key) }, icon('copy', 14), T('Sao chép khoá', 'Copy key')), h('button', { class: 'btn sm danger', onclick: async () => { if (await confirmBox(T('Tạo khoá mới? Script cũ sẽ ngừng hoạt động.', 'New key? Old scripts will stop.'))) { await API.post('/settings/ingest-key'); systemView(root); } } }, T('Tạo khoá mới', 'Regenerate'))))));

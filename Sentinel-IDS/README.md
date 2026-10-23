@@ -45,15 +45,16 @@ Sentinel-IDS/
    npm install        # chỉ lần đầu
    npm start          # hoặc: npm run dev (tự restart khi sửa code)
    ```
-   Lần chạy đầu, console in **tài khoản admin + mật khẩu ngẫu nhiên (chỉ 1 lần)**. Hãy ghi lại.
+   Tài khoản admin mặc định: **`admin` / `admin1234`** (backend tự tạo, và mỗi lần khởi động sẽ ép admin về đúng thông tin này; đặt `ADMIN_FORCE=false` trong `backend/.env` nếu muốn tự đổi mật khẩu và giữ nguyên).
+   Muốn đặt mật khẩu khác ngay: `npm run reset-admin -- MatKhauMoi123` (dừng backend trước, không mất dữ liệu).
 3. Mở Terminal 2 (`+` trên panel Terminal) → **FrontEnd**:
    ```bash
    cd frontend
    npm start          # (không cần npm install, không có thư viện ngoài)
    ```
-4. Mở <http://localhost:5173>, đăng nhập `admin` + mật khẩu ở bước 2 → hệ thống bắt **đổi mật khẩu** ở lần đầu.
+4. Mở <http://localhost:5173>, đăng nhập `admin` / `admin1234` (không bị ép đổi mật khẩu).
 
-> Có thể đặt trước mật khẩu admin: copy `backend/.env.example` → `backend/.env`, điền `ADMIN_PASSWORD=...`.
+> Đổi tài khoản admin mặc định: copy `backend/.env.example` → `backend/.env`, sửa `ADMIN_USERNAME` / `ADMIN_PASSWORD`. **`admin1234` là mật khẩu yếu, chỉ dùng trong mạng lab.**
 
 ### Cấu hình hay dùng
 | Việc cần làm | Cách làm |
@@ -83,6 +84,8 @@ Sentinel-IDS/
 ## 3. Chức năng
 
 ### 3.1 Tài khoản & phân quyền (Admin / User)
+- Trang **Đăng nhập / Đăng ký / Quên mật khẩu** đều có nút con mắt xem mật khẩu. Đăng ký tự do → tài khoản **chờ admin duyệt** (admin bật/tắt trong Cài đặt hệ thống). Quên mật khẩu → gửi yêu cầu tới admin (toast + Telegram), admin bấm 🔑 để cấp mật khẩu tạm.
+- **Tự động đăng nhập:** ô tick dưới ô mật khẩu ở trang đăng nhập. *Có tick* → ghi nhớ 30 ngày trên trình duyệt, mở lại / chạy lại `npm start` (backend hay frontend) vẫn vào thẳng, không cần đăng nhập. *Không tick* → phiên mất khi đóng tab và khi chạy lại backend hoặc frontend, phải đăng nhập lại. Đừng tick trên máy dùng chung.
 - Đăng nhập JWT, mật khẩu băm **scrypt**, khoá tạm 5 phút sau 5 lần sai, giới hạn tốc độ đăng nhập, thu hồi token khi đăng xuất/đổi mật khẩu/khoá tài khoản.
 - **Admin**: quản lý user (tạo/sửa/khoá/mở khoá/đặt lại mật khẩu/xoá, chính sách cổng), VM, công cụ Gateway, luật Suricata, chặn IP, đánh dấu cảnh báo, cài đặt hệ thống, xem Audit log.
 - **User**: xem tổng quan/cảnh báo/Wazuh, dùng Gateway & Terminal, quản lý port của mình, hồ sơ, đổi mật khẩu.

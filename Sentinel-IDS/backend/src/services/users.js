@@ -31,7 +31,7 @@ const list = () => col.data.map(publicUser);
 const byId = id => col.data.find(u => u.id === id);
 const byName = n => col.data.find(u => u.username.toLowerCase() === String(n).toLowerCase());
 
-function create({ username, password, role = 'user', displayName = '', email = '', telegramChatId = '', mustChangePassword = true, portPolicy }) {
+function create({ username, password, role = 'user', displayName = '', email = '', telegramChatId = '', mustChangePassword = false, portPolicy, pending = false }) {
   validateUsername(username); validatePassword(password);
   if (byName(username)) throw new HttpError(409, 'Username da ton tai');
   if (!['admin', 'user'].includes(role)) throw new HttpError(400, 'Role khong hop le');
@@ -39,7 +39,7 @@ function create({ username, password, role = 'user', displayName = '', email = '
     id: uid(), username, passwordHash: hashPassword(password), role,
     displayName: String(displayName).slice(0, 64), email: String(email).slice(0, 120),
     telegramChatId: String(telegramChatId).slice(0, 64),
-    disabled: false, mustChangePassword: !!mustChangePassword, tokenVersion: 1,
+    disabled: !!pending, pending: !!pending, resetRequestedAt: 0, mustChangePassword: false, tokenVersion: 1,
     failedLogins: 0, lockedUntil: 0, createdAt: Date.now(), lastLoginAt: 0,
     portPolicy: { ...DEFAULT_POLICY(), ...(portPolicy || {}) }
   };
@@ -60,6 +60,7 @@ function update(id, body, { self = false } = {}) {
       if (u.role !== body.role) { u.role = body.role; u.tokenVersion++; }
     }
     if (body.disabled !== undefined) {
+      if (!body.disabled) u.pending = false;
       if (body.disabled && u.role === 'admin' && !u.disabled && activeAdmins() <= 1) throw new HttpError(400, 'Khong the khoa admin cuoi cung');
       u.disabled = !!body.disabled; if (u.disabled) u.tokenVersion++;
     }
@@ -82,7 +83,7 @@ function setPassword(id, pw, mustChange = false) {
   validatePassword(pw);
   const u = byId(id);
   if (!u) throw new HttpError(404, 'Khong tim thay user');
-  u.passwordHash = hashPassword(pw); u.mustChangePassword = mustChange;
+  u.passwordHash = hashPassword(pw); u.mustChangePassword = false; u.resetRequestedAt = 0;
   u.tokenVersion++; u.failedLogins = 0; u.lockedUntil = 0;
   col.save();
   return u;
@@ -108,21 +109,39 @@ function authenticate(username, password) {
     col.save();
     throw new HttpError(401, 'Sai ten dang nhap hoac mat khau');
   }
+  if (u.pending) throw new HttpError(403, 'Tai khoan dang cho admin duyet');
   if (u.disabled) throw new HttpError(403, 'Tai khoan da bi vo hieu hoa');
   u.failedLogins = 0; u.lockedUntil = 0; u.lastLoginAt = Date.now(); col.save();
   return u;
 }
 
-function bootstrapAdmin() {
-  if (col.data.length) return;
-  const pw = cfg.ADMIN_PASSWORD || randomPassword();
-  create({ username: cfg.ADMIN_USERNAME, password: pw, role: 'admin', displayName: 'Administrator', mustChangePassword: !cfg.ADMIN_PASSWORD });
-  console.log('\n==============================================================');
-  console.log('  TAI KHOAN ADMIN DAU TIEN DA DUOC TAO (chi hien 1 lan):');
-  console.log(`    Username: ${cfg.ADMIN_USERNAME}`);
-  console.log(cfg.ADMIN_PASSWORD ? '    Password: (lay tu bien moi truong ADMIN_PASSWORD)' : `    Password: ${pw}`);
-  if (!cfg.ADMIN_PASSWORD) console.log('    (Se bat doi mat khau o lan dang nhap dau)');
-  console.log('==============================================================\n');
+/** Dang ky tu do: tai khoan o trang thai CHO DUYET, admin phai duyet moi dang nhap duoc */
+function register({ username, password, displayName = '', email = '' }) {
+  return create({ username, password, role: 'user', displayName, email, pending: true });
+}
+function approve(id) {
+  const u = byId(id); if (!u) throw new HttpError(404, 'Khong tim thay user');
+  u.pending = false; u.disabled = false; col.save(); return u;
+}
+/** Yeu cau quen mat khau: chi danh dau cho admin (khong lo thong tin user co ton tai hay khong) */
+function requestReset(username) {
+  const u = byName(username);
+  if (u && !u.pending) { u.resetRequestedAt = Date.now(); col.save(); }
+  return u || null;
 }
 
-module.exports = { list, byId, byName, create, update, setPassword, remove, authenticate, bootstrapAdmin, publicUser, validatePassword, DEFAULT_POLICY, randomPassword };
+function bootstrapAdmin() {
+  const name = cfg.ADMIN_USERNAME, pw = cfg.ADMIN_PASSWORD;
+  let a = byName(name), note = '';
+  if (!a) { create({ username: name, password: pw, role: 'admin', displayName: 'Administrator' }); note = 'da duoc TAO'; }
+  else if (cfg.ADMIN_FORCE) {
+    // Ep tai khoan admin dung nhu cau hinh (chi ghi lai khi dang lech de khong lam mat phien dang nhap vo ich)
+    if (!verifyPassword(pw, a.passwordHash)) { setPassword(a.id, pw); note = 'da duoc DAT LAI mat khau'; }
+    if (a.role !== 'admin' || a.disabled || a.pending) { a.role = 'admin'; a.disabled = false; a.pending = false; a.tokenVersion++; col.save(); note = note || 'da duoc KHOI PHUC quyen admin'; }
+    a.lockedUntil = 0; a.failedLogins = 0;
+  }
+  if (note) console.log(`[admin] Tai khoan "${name}" ${note} theo cau hinh (ADMIN_FORCE=${cfg.ADMIN_FORCE}).`);
+  if (cfg.ADMIN_FORCE && pw === 'admin1234') console.log('[canh bao] Dang dung mat khau admin mac dinh "admin1234". Chi dung trong mang lab; doi ADMIN_PASSWORD trong backend/.env truoc khi mo ra ngoai.');
+}
+
+module.exports = { register, approve, requestReset, list, byId, byName, create, update, setPassword, remove, authenticate, bootstrapAdmin, publicUser, validatePassword, DEFAULT_POLICY, randomPassword };
