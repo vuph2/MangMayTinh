@@ -22,8 +22,8 @@ const enforcers = () => vms.all().filter(v => v.enabled && (v.roles || []).inclu
 
 async function applyOn(vm, ip, add) {
   const cmd = add
-    ? `iptables -C INPUT -s ${ip} -j DROP 2>/dev/null || iptables -I INPUT -s ${ip} -j DROP`
-    : `while iptables -C INPUT -s ${ip} -j DROP 2>/dev/null; do iptables -D INPUT -s ${ip} -j DROP; done; true`;
+    ? `iptables -C INPUT -s ${ip} -j DROP 2>/dev/null || iptables -I INPUT -s ${ip} -j DROP; iptables -L DOCKER-USER -n >/dev/null 2>&1 && (iptables -C DOCKER-USER -s ${ip} -j DROP 2>/dev/null || iptables -I DOCKER-USER -s ${ip} -j DROP); true`
+    : `while iptables -C INPUT -s ${ip} -j DROP 2>/dev/null; do iptables -D INPUT -s ${ip} -j DROP; done; iptables -L DOCKER-USER -n >/dev/null 2>&1 && while iptables -C DOCKER-USER -s ${ip} -j DROP 2>/dev/null; do iptables -D DOCKER-USER -s ${ip} -j DROP; done; true`;
   try {
     const r = await ssh.exec(vm, cmd, { sudo: true, timeout: 15000 });
     return { vmId: vm.id, vm: vm.name, ok: r.code === 0, error: r.code === 0 ? '' : (r.stderr || '').trim().slice(0, 200) };
