@@ -11,8 +11,9 @@ fi
 
 echo "[*] Kích hoạt Active Response chặn IP: $TARGET_IP"
 
-# Thêm quy tắc iptables DROP
+# Thêm quy tắc iptables DROP cho cả chuỗi INPUT và DOCKER-USER (hỗ trợ container Docker như DVWA)
 sudo iptables -I INPUT -s "$TARGET_IP" -j DROP
+sudo iptables -I DOCKER-USER -s "$TARGET_IP" -j DROP 2>/dev/null || true
 
 # Cấu hình ufw nếu ufw đang bật
 if command -v ufw &> /dev/null; then

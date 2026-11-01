@@ -68,14 +68,34 @@ async function agents() {
 }
 
 const levelToSev = l => (l >= 10 ? 'High' : l >= 7 ? 'Medium' : 'Low');
+function resolveSev(rule, d) {
+  const suriSev = (d && d.alert && d.alert.severity) !== undefined ? d.alert.severity : (d && d.severity);
+  if (suriSev !== undefined && suriSev !== null) {
+    const n = +suriSev;
+    if (n === 1) return 'High';
+    if (n === 2) return 'Medium';
+    return 'Low';
+  }
+  return levelToSev(rule && rule.level);
+}
+
 function mapHit(h) {
   const s = h._source || {}, rule = s.rule || {}, d = s.data || {}, agent = s.agent || {};
-  const ip = d.srcip || d.src_ip || (d.alert && d.src_ip) || (s.data && s.data.srcip) || agent.ip || '';
+  const ip = d.srcip || d.src_ip || (d.alert && d.alert.src_ip) || (s.data && s.data.srcip) || agent.ip || '';
+  const sig = (d.alert && d.alert.signature) || d.signature || rule.description || '';
+  const sev = resolveSev(rule, d);
   return {
     ts: Date.parse(s.timestamp) || Date.now(), ip, src_port: +(d.src_port || d.srcport) || 0,
     dst_ip: d.dstip || d.dest_ip || agent.ip || '', dst_port: +(d.dest_port || d.dstport) || 0, proto: String(d.proto || 'TCP').toUpperCase(),
-    type: (rule.groups && rule.groups[0]) || 'Wazuh alert', tool: 'Wazuh', sev: levelToSev(rule.level), sid: +rule.id || 0,
-    signature: rule.description || '', payload: String(s.full_log || '').slice(0, 1500), source: 'wazuh', agent: agent.name || '', dedupKey: 'wazuh|' + h._id
+    type: (d.alert && d.alert.category) || (rule.groups && rule.groups[0]) || 'Wazuh alert',
+    tool: d.alert ? 'Suricata' : 'Wazuh',
+    sev,
+    sid: +(d.alert && d.alert.signature_id) || +rule.id || 0,
+    signature: sig,
+    payload: String(s.full_log || '').slice(0, 1500),
+    source: 'wazuh',
+    agent: agent.name || '',
+    dedupKey: 'wazuh|' + h._id
   };
 }
 
