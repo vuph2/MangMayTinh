@@ -20,6 +20,9 @@ const monitor = require('../services/monitor');
 const ssh = require('../services/ssh');
 const audit = require('../services/audit');
 const events = require('../services/events');
+const whitelist = require('../services/whitelist');
+const scenarios = require('../services/scenarios');
+
 
 const r = new Router();
 const ADMIN = { auth: true, roles: ['admin'] };
@@ -192,4 +195,27 @@ r.post('/settings/ingest-key', ADMIN, ({ user }) => { audit.log(user, 'settings.
 r.get('/settings/ingest-key', ADMIN, () => ({ ingestKey: settings.get().ingestKey }));
 r.get('/audit', ADMIN, ({ query }) => audit.list({ limit: parseInt(query.limit, 10) || 200, user: query.user, action: query.action }));
 
+
+// ======================= WHITELIST =======================
+r.get('/whitelist/ips', USER, () => ({ ips: whitelist.listIps() }));
+r.post('/whitelist/ips', ADMIN, ({ user, body }) => { const e = whitelist.addIp(str(body.ip, 64), { reason: str(body.reason), addedBy: user.username }); audit.log(user, 'whitelist.ip.add', e.ip); return e; });
+r.delete('/whitelist/ips/:ip', ADMIN, ({ user, params }) => { const r = whitelist.removeIp(decodeURIComponent(params.ip)); audit.log(user, 'whitelist.ip.remove', params.ip); return r; });
+r.get('/whitelist/sids', USER, () => ({ sids: whitelist.listSids() }));
+r.post('/whitelist/sids', ADMIN, ({ user, body }) => { const e = whitelist.addSid(body.sid, { reason: str(body.reason), addedBy: user.username }); audit.log(user, 'whitelist.sid.add', String(e.sid)); return e; });
+r.delete('/whitelist/sids/:sid', ADMIN, ({ user, params }) => { const r = whitelist.removeSid(params.sid); audit.log(user, 'whitelist.sid.remove', params.sid); return r; });
+
+// ======================= INCIDENTS / REPORTS =======================
+r.get('/incidents', USER, ({ query }) => alerts.incidents(str(query.ip, 64), query.limit));
+r.get('/top-ips', USER, ({ query }) => ({ data: alerts.topIps(parseInt(query.n, 10) || 10) }));
+r.get('/top-signatures', USER, ({ query }) => ({ data: alerts.topSignatures(parseInt(query.n, 10) || 10) }));
+
+// ======================= SCENARIOS =======================
+r.get('/scenarios', ADMIN, () => scenarios.listScenarios());
+r.get('/scenarios/history', ADMIN, () => scenarios.listHistory());
+r.get('/scenarios/run/:id', ADMIN, ({ params }) => scenarios.getStatus(params.id));
+r.post('/scenarios/run', ADMIN, async ({ user, body }) => {
+  const runId = await scenarios.run(str(body.scenario, 64), str(body.vmId, 64), str(body.target, 64), user);
+  audit.log(user, 'scenario.run', `${body.scenario} -> ${body.target} (${runId})`);
+  return { runId };
+});
 module.exports = r;

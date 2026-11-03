@@ -1,10 +1,10 @@
-/** Chan IP (Active Response that) + Luat Suricata (deploy that) + Wazuh (API/Indexer that) */
+/** Chan IP (Active Response that) + Luat Suricata (deploy that) + Wazuh (API/Indexer that) + Danh sach trang */
 (function () {
   const { h, icon, T, toast, modal, confirmBox, field, input, select, check, fmtTime, fmtDateTime, empty, sevChip, copyText, dropdown } = UI;
   const admin = () => S.me.role === 'admin';
   let secRoot, wzRoot;
 
-  // ================= BLOCKLIST + RULES (1 trang, 2 tab) =================
+  // ================= BLOCKLIST + RULES + WHITELIST (1 trang, 3 tab) =================
   let tab = 'bl';
   const stCls = s => s === 'applied' ? 'ok' : s === 'partial' || s === 'no-enforcer' ? 'warn' : 'bad';
   const stTxt = s => ({ applied: T('Đã chặn trên VM', 'Applied on VM'), partial: T('Một phần', 'Partial'), failed: T('Thất bại', 'Failed'), 'no-enforcer': T('Chưa có VM "victim" để chặn', 'No "victim" VM to enforce') }[s] || s);
@@ -47,13 +47,93 @@
       S.rules.length ? h('div', { class: 'tbl-wrap' }, h('table', { class: 'tbl' }, h('thead', {}, h('tr', {}, ['SID', T('Luật', 'Rule'), T('Triển khai', 'Deployed'), T('Bật', 'On'), admin() ? '' : null].map(c => c === null ? null : h('th', {}, c)))), h('tbody', {}, rows))) : empty(T('Chưa có luật tuỳ chỉnh', 'No custom rules'), T('Thêm luật rồi đồng bộ xuống máy sensor.', 'Add rules and deploy them to the sensor.')));
   }
 
+  // ---- Danh sach trang ----
+  let wlIps = [], wlSids = [];
+
+  async function loadWhitelist() {
+    const [ips, sids] = await Promise.all([API.get('/whitelist/ips'), API.get('/whitelist/sids')]);
+    wlIps = ips.ips || []; wlSids = sids.sids || [];
+  }
+
+  function whitelistTab() {
+    const ipI = input({ placeholder: '192.168.1.100 hoặc 192.168.1.0/24' });
+    const ipR = input({ placeholder: T('Lý do (VD: IP scan hợp lệ)', 'Reason (e.g. valid scanner)') });
+    const sidI = input({ type: 'number', placeholder: '1000100' });
+    const sidR = input({ placeholder: T('Lý do (VD: false positive đã xác nhận)', 'Reason (e.g. confirmed false positive)') });
+
+    const ipRows = wlIps.map(e => h('tr', {},
+      h('td', { class: 'mono' }, e.ip), h('td', {}, e.reason || '—'), h('td', {}, e.addedBy || '—'), h('td', {}, fmtDateTime(e.addedAt)),
+      admin() ? h('td', { class: 'act' }, h('button', { class: 'btn sm', onclick: async () => {
+        await API.del('/whitelist/ips/' + encodeURIComponent(e.ip));
+        await loadWhitelist(); draw();
+      }}, icon('trash', 14), T('Xoá', 'Remove'))) : null));
+
+    const sidRows = wlSids.map(e => h('tr', {},
+      h('td', { class: 'mono' }, e.sid), h('td', {}, e.reason || '—'), h('td', {}, e.addedBy || '—'), h('td', {}, fmtDateTime(e.addedAt)),
+      admin() ? h('td', { class: 'act' }, h('button', { class: 'btn sm', onclick: async () => {
+        await API.del('/whitelist/sids/' + e.sid);
+        await loadWhitelist(); draw();
+      }}, icon('trash', 14), T('Xoá', 'Remove'))) : null));
+
+    return h('div', {},
+      h('div', { class: 'banner ok', style: { marginBottom: '14px' } }, icon('shield', 16), h('span', {}, T('Cảnh báo từ IP/SID trong danh sách trắng sẽ bị bỏ qua tự động. Dùng để giảm báo động giả.', 'Alerts from whitelisted IPs/SIDs are silently dropped. Use to reduce false positives.'))),
+
+      admin() ? h('div', { class: 'card', style: { marginBottom: '14px' } },
+        h('h3', {}, icon('shield', 14), ' ', T('Thêm IP tin cậy (bỏ qua cảnh báo từ IP này)', 'Add trusted IP (ignore alerts from this IP)')),
+        h('div', { class: 'row' },
+          h('div', { style: { width: '220px' } }, ipI),
+          h('div', { style: { flex: 1 } }, ipR),
+          h('button', { class: 'btn primary', onclick: async () => {
+            try { await API.post('/whitelist/ips', { ip: ipI.value.trim(), reason: ipR.value.trim() }); toast(T('Đã thêm IP vào danh sách trắng', 'IP whitelisted'), 'ok'); await loadWhitelist(); draw(); }
+            catch (e) { toast(e.message, 'bad'); }
+          }}, icon('plus', 14), T('Thêm IP', 'Add IP')))) : null,
+
+      h('div', { class: 'card', style: { marginBottom: '14px' } },
+        h('h3', {}, T('IP tin cậy', 'Trusted IPs')),
+        wlIps.length ? h('div', { class: 'tbl-wrap' }, h('table', { class: 'tbl' },
+          h('thead', {}, h('tr', {}, ['IP/CIDR', T('Lý do', 'Reason'), T('Người thêm', 'Added by'), T('Ngày thêm', 'Date'), admin() ? '' : null].map(c => c === null ? null : h('th', {}, c)))),
+          h('tbody', {}, ipRows)))
+        : empty(T('Chưa có IP nào trong danh sách trắng', 'No whitelisted IPs'))),
+
+      admin() ? h('div', { class: 'card', style: { marginBottom: '14px' } },
+        h('h3', {}, icon('list', 14), ' ', T('Thêm SID bỏ qua (luật Suricata hay báo động giả)', 'Add ignored SID (false-positive Suricata rule)')),
+        h('div', { class: 'row' },
+          h('div', { style: { width: '150px' } }, sidI),
+          h('div', { style: { flex: 1 } }, sidR),
+          h('button', { class: 'btn primary', onclick: async () => {
+            try { await API.post('/whitelist/sids', { sid: +sidI.value, reason: sidR.value.trim() }); toast(T('Đã thêm SID vào danh sách trắng', 'SID whitelisted'), 'ok'); await loadWhitelist(); draw(); }
+            catch (e) { toast(e.message, 'bad'); }
+          }}, icon('plus', 14), T('Thêm SID', 'Add SID')))) : null,
+
+      h('div', { class: 'card' },
+        h('h3', {}, T('SID bỏ qua', 'Ignored SIDs')),
+        wlSids.length ? h('div', { class: 'tbl-wrap' }, h('table', { class: 'tbl' },
+          h('thead', {}, h('tr', {}, ['SID', T('Lý do', 'Reason'), T('Người thêm', 'Added by'), T('Ngày thêm', 'Date'), admin() ? '' : null].map(c => c === null ? null : h('th', {}, c)))),
+          h('tbody', {}, sidRows)))
+        : empty(T('Chưa có SID nào bị bỏ qua', 'No ignored SIDs'))));
+  }
+
   function draw() {
     secRoot.replaceChildren(
-      h('div', { class: 'page-h' }, h('h2', {}, T('Chặn IP & Luật Suricata', 'Blocklist & Suricata rules')),
-        h('div', { class: 'row' }, [['bl', T('Danh sách chặn', 'Blocklist')], ['ru', T('Luật Suricata', 'Rules')]].map(([k, l]) => h('button', { class: 'btn' + (tab === k ? ' primary' : ''), onclick: () => { tab = k; draw(); } }, l)))),
-      tab === 'bl' ? blTab() : rulesTab());
+      h('div', { class: 'page-h' }, h('h2', {}, T('Bảo mật', 'Security')),
+        h('div', { class: 'row' }, [
+          ['bl', T('Danh sách chặn', 'Blocklist')],
+          ['ru', T('Luật Suricata', 'Rules')],
+          ['wl', T('Danh sách trắng', 'Whitelist')]
+        ].map(([k, l]) => h('button', { class: 'btn' + (tab === k ? ' primary' : ''), onclick: () => { tab = k; draw(); } }, l)))),
+      tab === 'bl' ? blTab() : tab === 'ru' ? rulesTab() : whitelistTab());
   }
-  window.Views.security = { async render(root) { secRoot = root; await refreshState(['blocklist', 'rules', 'vms']); draw(); }, onEvent(ev) { if (['ip_blocked', 'ip_unblocked', 'rules_updated'].includes(ev) && secRoot && document.contains(secRoot) && !document.querySelector('.overlay')) draw(); } };
+
+  window.Views.security = {
+    async render(root) {
+      secRoot = root;
+      await Promise.all([refreshState(['blocklist', 'rules', 'vms']), loadWhitelist()]);
+      draw();
+    },
+    onEvent(ev) {
+      if (['ip_blocked', 'ip_unblocked', 'rules_updated'].includes(ev) && secRoot && document.contains(secRoot) && !document.querySelector('.overlay')) draw();
+    }
+  };
 
   // ================= WAZUH =================
   window.Views.wazuh = {
@@ -70,7 +150,7 @@
       parts.push(h('h3', { style: { margin: '18px 0 8px' } }, 'Agents (' + agents.length + ')'),
         agents.length ? h('div', { class: 'tbl-wrap' }, h('table', { class: 'tbl' }, h('thead', {}, h('tr', {}, ['ID', 'Name', 'IP', T('Trạng thái', 'Status'), 'OS', 'Version'].map(c => h('th', {}, c)))), h('tbody', {}, agents.map(a => h('tr', {}, h('td', {}, a.id), h('td', {}, a.name), h('td', { class: 'mono' }, a.ip), h('td', {}, h('span', { class: 'chip ' + (a.status === 'active' ? 'ok' : 'bad') }, a.status)), h('td', {}, a.os || '—'), h('td', {}, a.version || '—')))))) : empty(T('Không có agent', 'No agents')),
         h('h3', { style: { margin: '18px 0 8px' } }, T('Cảnh báo mới nhất từ Indexer', 'Latest alerts from Indexer')),
-        alerts.length ? h('div', { class: 'tbl-wrap' }, h('table', { class: 'tbl' }, h('thead', {}, h('tr', {}, [T('Thời gian', 'Time'), 'Level', 'Agent', T('Mô tả', 'Description'), 'IP'].map(c => h('th', {}, c)))), h('tbody', {}, alerts.map(a => h('tr', {}, h('td', {}, fmtTime(a.ts)), h('td', {}, sevChip(a.sev)), h('td', {}, a.agent), h('td', {}, a.signature), h('td', { class: 'mono' }, a.ip)))))) : empty(T('Chưa có cảnh báo', 'No alerts')));
+        alerts.length ? h('div', { class: 'tbl-wrap' }, h('table', { class: 'tbl' }, h('thead', {}, h('tr', {}, [T('Thời gian', 'Time'), 'Level', 'Agent', T('Mô tả', 'Description'), 'IP', 'MITRE'].map(c => h('th', {}, c)))), h('tbody', {}, alerts.map(a => h('tr', {}, h('td', {}, fmtTime(a.ts)), h('td', {}, sevChip(a.sev)), h('td', {}, a.agent), h('td', {}, a.signature), h('td', { class: 'mono' }, a.ip), h('td', {}, a.mitre ? h('span', { class: 'chip', title: a.mitre.tactic }, a.mitre.technique) : '—')))))) : empty(T('Chưa có cảnh báo', 'No alerts')));
       if (admin()) parts.push(h('div', { class: 'row', style: { marginTop: '12px' } }, h('button', { class: 'btn', onclick: async () => { await API.post('/wazuh/sync'); toast(T('Đã đồng bộ cảnh báo Wazuh vào danh sách chung', 'Wazuh alerts synced'), 'ok'); } }, icon('refresh', 14), T('Đồng bộ cảnh báo Wazuh ngay', 'Sync Wazuh alerts now'))));
       root.replaceChildren(...parts);
     }

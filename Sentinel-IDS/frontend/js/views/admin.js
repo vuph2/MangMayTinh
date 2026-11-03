@@ -1,4 +1,4 @@
-/** Quan tri: User, May ao (VM), Cong cu Gateway, Cai dat he thong, Nhat ky */
+﻿/** Quan tri: User, May ao (VM), Cong cu Gateway, Cai dat he thong, Nhat ky */
 (function () {
   const { h, icon, T, toast, modal, confirmBox, field, input, select, check, fmtDateTime, timeAgo, empty, copyText, dropdown } = UI;
   const page = (title, sub, ...extra) => h('div', { class: 'page-h' }, h('h2', {}, title), sub ? h('p', {}, sub) : null, h('span', { style: { flex: 1 } }), ...extra);
@@ -74,7 +74,7 @@
     const en = check(T('Đang bật', 'Enabled'), v ? v.enabled : true), rk = check(T('Reset host key (khi VM cài lại)', 'Reset host key (VM reinstalled)'), false);
     modal({ title: v ? T('Sửa VM ', 'Edit VM ') + v.name : T('Thêm VM', 'Add VM'), wide: true, body: h('div', { class: 'form-grid' },
       field(T('Tên', 'Name'), f.name), field('IP / host', f.ip), field(T('Cổng SSH', 'SSH port'), f.sshPort), field(T('User SSH', 'SSH user'), f.sshUser), field(T('Mật khẩu SSH', 'SSH password'), f.sshPass), field(T('Hoặc private key', 'Or private key'), f.sshKey),
-      field('sudo', f.sudoMode), field(T('Mật khẩu sudo', 'sudo password'), f.sudoPass), field(T('Cổng kiểm tra sống/chết', 'Health-check port'), f.healthPort), field(T('Đường dẫn fast.log (sensor)', 'fast.log path (sensor)'), f.logPath), field(T('Hệ điều hành', 'OS'), f.os), field(T('Ghi chú', 'Notes'), f.notes),
+      field('sudo', f.sudoMode), field(T('Mật khẩu sudo', 'sudo password'), f.sudoPass), field(T('Cổng kiểm tra sống/chết', 'Health-check port'), f.healthPort), field(T('Đường dẫn log Suricata (fast.log / eve.json)', 'fast.log path (sensor)'), f.logPath), field(T('Hệ điều hành', 'OS'), f.os), field(T('Ghi chú', 'Notes'), f.notes),
       h('div', { class: 'full' }, h('b', {}, T('Vai trò', 'Roles')), h('div', {}, roles)), h('div', {}, en, v ? rk : null),
       v && v.hostKey ? h('small', { class: 'mut mono full' }, 'Host key SHA256: ' + v.hostKey.slice(0, 32) + '…') : null),
       actions: [{ label: T('Huỷ', 'Cancel') }, { label: T('Lưu', 'Save'), primary: true, close: false, onClick: async (e, close) => {

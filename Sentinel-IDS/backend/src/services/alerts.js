@@ -6,6 +6,7 @@ const settings = require('./settings');
 const events = require('./events');
 const telegram = require('./telegram');
 const audit = require('./audit');
+const whitelist = require('./whitelist');
 
 const col = store.open('alerts', []);
 const seen = new Set(col.data.slice(0, 500).map(a => a.dedupKey).filter(Boolean));
@@ -16,8 +17,32 @@ const setHooks = h => { hooks = { ...hooks, ...h }; };
 const SEVS = ['High', 'Medium', 'Low'];
 let counter = 0;
 
+// ---- MITRE ATT&CK mapping ----
+const MITRE_MAP = [
+  { re: /nmap|port.?scan|scan/i,           tactic: 'Reconnaissance',        technique: 'T1046', name: 'Network Service Scanning' },
+  { re: /ssh.?brute|hydra|brute.?force/i,  tactic: 'Credential Access',     technique: 'T1110', name: 'Brute Force' },
+  { re: /sql.?inject|sqli/i,               tactic: 'Initial Access',        technique: 'T1190', name: 'Exploit Public-Facing Application' },
+  { re: /flood|dos|syn.?flood|ddos/i,      tactic: 'Impact',                technique: 'T1498', name: 'Network Denial of Service' },
+  { re: /\/etc\/passwd|sensitive.*file|lfi|file.?inclus/i, tactic: 'Discovery', technique: 'T1083', name: 'File and Directory Discovery' },
+  { re: /xss|cross.?site/i,                tactic: 'Initial Access',        technique: 'T1059.007', name: 'JavaScript' },
+  { re: /reverse.?shell|backdoor|bind.?shell/i, tactic: 'Execution',       technique: 'T1059', name: 'Command and Scripting Interpreter' },
+  { re: /privilege.?escal|sudo|suid/i,     tactic: 'Privilege Escalation',  technique: 'T1548', name: 'Abuse Elevation Control Mechanism' },
+  { re: /lateral|pass.?the.?hash|pth/i,    tactic: 'Lateral Movement',      technique: 'T1550', name: 'Use Alternate Authentication Material' },
+];
+
+function resolveMitre(alert) {
+  // Wazuh co san cac truong rule.mitre
+  if (alert.mitre) return alert.mitre;
+  const text = (alert.signature || '') + ' ' + (alert.type || '');
+  for (const m of MITRE_MAP) {
+    if (m.re.test(text)) return { tactic: m.tactic, technique: m.technique, techniqueName: m.name };
+  }
+  return null;
+}
+
 function normalize(d) {
   const ts = Number(d.ts) || Date.now();
+  const mitre = resolveMitre(d);
   return {
     id: d.id || `ALT-${ts.toString(36)}-${(++counter).toString(36)}`,
     ts, ip: String(d.ip || '').slice(0, 64), src_port: +d.src_port || 0,
@@ -27,13 +52,16 @@ function normalize(d) {
     sid: +d.sid || 0, signature: String(d.signature || d.type || '').slice(0, 300),
     payload: String(d.payload || '').slice(0, 2000), status: 'active',
     source: String(d.source || 'ingest').slice(0, 20), agent: String(d.agent || '').slice(0, 64),
-    dedupKey: d.dedupKey || null
+    dedupKey: d.dedupKey || null,
+    mitre: mitre || undefined
   };
 }
 
-/** Them canh bao. Tra ve null neu trung. */
+/** Them canh bao. Tra ve null neu trung hoac nam trong whitelist. */
 function add(raw) {
   const a = normalize(raw);
+  // Kiem tra danh sach trang
+  if (whitelist.isWhitelisted(a)) return null;
   if (a.dedupKey) { if (seen.has(a.dedupKey)) return null; seen.add(a.dedupKey); if (seen.size > 3000) seen.clear(); }
   col.data.unshift(a);
   if (col.data.length > cfg.MAX_ALERTS) col.data.length = cfg.MAX_ALERTS;
@@ -47,7 +75,7 @@ function handleIncident(a) {
   const s = settings.get();
   // 1. Telegram that
   if (s.telegram.enabled && settings.sevAtLeast(a.sev, s.telegram.minSeverity)) {
-    telegram.notify(`🚨 [${a.sev.toUpperCase()}] ${a.type}\n${a.signature}\n${a.ip}${a.src_port ? ':' + a.src_port : ''} → ${a.dst_ip}:${a.dst_port} (${a.proto})\nNguon: ${a.source}${a.agent ? ' / ' + a.agent : ''}`);
+    telegram.notify(`🚨 [${a.sev.toUpperCase()}] ${a.type}\n${a.signature}\n${a.ip}${a.src_port ? ':' + a.src_port : ''} → ${a.dst_ip}:${a.dst_port} (${a.proto})\nNguon: ${a.source}${a.agent ? ' / ' + a.agent : ''}${a.mitre ? '\nMITRE: ' + a.mitre.tactic + ' / ' + a.mitre.technique : ''}`);
   }
   // 2. Tu dong ngat tunnel gateway lien quan (cat tai VM)
   if (s.incident.autoCut && hooks.cut && settings.sevAtLeast(a.sev, s.incident.minSeverity)) {
@@ -87,16 +115,41 @@ function stats() {
   const now = Date.now(), BUCKET = 300000, N = 36;
   const timeline = Array.from({ length: N }, (_, i) => ({ t: now - (N - 1 - i) * BUCKET, count: 0 }));
   const byType = {}, byIp = {}, bySev = { High: 0, Medium: 0, Low: 0 }, byStatus = { active: 0, resolved: 0, false_positive: 0 };
+  const bySig = {}, byMitreTactic = {};
   let last1h = 0;
   for (const a of col.data) {
     byType[a.type] = (byType[a.type] || 0) + 1;
     byIp[a.ip] = (byIp[a.ip] || 0) + 1;
     bySev[a.sev]++; byStatus[a.status] = (byStatus[a.status] || 0) + 1;
+    if (a.signature) bySig[a.signature] = (bySig[a.signature] || 0) + 1;
+    if (a.mitre && a.mitre.tactic) byMitreTactic[a.mitre.tactic] = (byMitreTactic[a.mitre.tactic] || 0) + 1;
     const age = now - a.ts;
     if (age < 3600000) last1h++;
     if (age >= 0 && age < N * BUCKET) timeline[N - 1 - Math.floor(age / BUCKET)].count++;
   }
-  return { total: col.data.length, last1h, byType, byIp, bySev, byStatus, timeline };
+  return { total: col.data.length, last1h, byType, byIp, bySev, byStatus, bySig, byMitreTactic, timeline };
 }
 
-module.exports = { add, query, byId, setStatus, clear, stats, setHooks, all: () => col.data };
+/** Gom su co theo IP nguon: tat ca canh bao cua mot IP, sap xep theo thoi gian. */
+function incidents(ip, limit = 200) {
+  const data = col.data.filter(a => a.ip === ip).slice(0, Math.min(parseInt(limit, 10) || 200, 500));
+  const firstSeen = data.length ? Math.min(...data.map(a => a.ts)) : null;
+  const lastSeen = data.length ? Math.max(...data.map(a => a.ts)) : null;
+  const types = [...new Set(data.map(a => a.type))];
+  const maxSev = data.some(a => a.sev === 'High') ? 'High' : data.some(a => a.sev === 'Medium') ? 'Medium' : 'Low';
+  return { ip, total: data.length, firstSeen, lastSeen, maxSev, types, timeline: data };
+}
+
+/** Top N IP tan cong: sap xep theo so canh bao giam dan. */
+function topIps(n = 10) {
+  const st = stats();
+  return Object.entries(st.byIp).sort((a, b) => b[1] - a[1]).slice(0, n).map(([ip, count]) => ({ ip, count }));
+}
+
+/** Top N chu ky (signature). */
+function topSignatures(n = 10) {
+  const st = stats();
+  return Object.entries(st.bySig).sort((a, b) => b[1] - a[1]).slice(0, n).map(([sig, count]) => ({ sig, count }));
+}
+
+module.exports = { add, query, byId, setStatus, clear, stats, setHooks, all: () => col.data, incidents, topIps, topSignatures };

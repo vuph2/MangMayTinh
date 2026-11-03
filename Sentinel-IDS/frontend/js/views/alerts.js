@@ -8,8 +8,43 @@
 
   function csv(list) {
     const esc = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-    const cols = ['id', 'ts', 'sev', 'type', 'ip', 'src_port', 'dst_ip', 'dst_port', 'proto', 'sid', 'signature', 'source', 'agent', 'status'];
-    return '\uFEFF' + cols.join(',') + '\n' + list.map(a => cols.map(c => esc(c === 'ts' ? fmtDateTime(a.ts) : a[c])).join(',')).join('\n');
+    const cols = ['id', 'ts', 'sev', 'type', 'ip', 'src_port', 'dst_ip', 'dst_port', 'proto', 'sid', 'signature', 'source', 'agent', 'status', 'mitre_tactic', 'mitre_technique'];
+    return '\uFEFF' + cols.join(',') + '\n' + list.map(a => cols.map(c => {
+      if (c === 'ts') return esc(fmtDateTime(a.ts));
+      if (c === 'mitre_tactic') return esc(a.mitre ? a.mitre.tactic : '');
+      if (c === 'mitre_technique') return esc(a.mitre ? a.mitre.technique : '');
+      return esc(a[c]);
+    }).join(',')).join('\n');
+  }
+
+  // ---- Dòng thời gian sự cố theo IP ----
+  async function showIncident(ip) {
+    const inc = await API.get('/incidents?ip=' + encodeURIComponent(ip) + '&limit=200');
+    const timeline = (inc.timeline || []).slice(0, 200);
+    const rows = timeline.map(a => h('tr', {},
+      h('td', {}, fmtDateTime(a.ts)), h('td', {}, sevChip(a.sev)),
+      h('td', {}, a.type), h('td', {}, a.signature ? a.signature.slice(0, 60) : '—'),
+      h('td', { class: 'mono' }, a.dst_ip + (a.dst_port ? ':' + a.dst_port : '')),
+      h('td', {}, a.mitre ? h('span', { class: 'chip', title: a.mitre.techniqueName || '' }, a.mitre.technique) : '—')));
+    modal({
+      title: T('Dòng thời gian sự cố — ', 'Incident timeline — ') + ip,
+      wide: true,
+      body: h('div', {},
+        h('div', { class: 'grid g4', style: { marginBottom: '12px' } },
+          h('div', { class: 'stat-mini' }, h('b', {}, inc.total), h('span', {}, T('Cảnh báo', 'Alerts'))),
+          h('div', { class: 'stat-mini' }, h('b', { style: { color: inc.maxSev === 'High' ? 'var(--bad)' : inc.maxSev === 'Medium' ? 'var(--warn)' : 'var(--ok)' } }, inc.maxSev), h('span', {}, T('Mức cao nhất', 'Max severity'))),
+          h('div', { class: 'stat-mini' }, h('b', {}, fmtDateTime(inc.firstSeen)), h('span', {}, T('Lần đầu', 'First seen'))),
+          h('div', { class: 'stat-mini' }, h('b', {}, fmtDateTime(inc.lastSeen)), h('span', {}, T('Lần cuối', 'Last seen')))),
+        inc.types && inc.types.length
+          ? h('div', { style: { marginBottom: '8px' } }, h('b', {}, T('Loại tấn công: ', 'Attack types: ')), inc.types.map(t => h('span', { class: 'chip', style: { marginRight: '4px' } }, t)))
+          : null,
+        h('div', { class: 'tbl-wrap' }, h('table', { class: 'tbl' },
+          h('thead', {}, h('tr', {}, [T('Thời gian', 'Time'), T('Mức', 'Level'), T('Loại', 'Type'), T('Chữ ký', 'Signature'), T('Đích', 'Dest'), 'MITRE'].map(c => h('th', {}, c)))),
+          h('tbody', {}, rows)))),
+      actions: [{ label: T('Chặn IP', 'Block IP'), danger: true, close: false, onClick: async (e, close) => {
+        try { await API.post('/blocklist', { ip, reason: 'Incident timeline block' }); toast(T('Đã gửi lệnh chặn', 'Block sent'), 'ok'); close(); } catch (er) { toast(er.message, 'bad'); }
+      }}, { label: T('Đóng', 'Close'), primary: true }]
+    });
   }
 
   function detail(a) {
@@ -22,14 +57,16 @@
       act.push({ label: T('Báo động giả', 'False positive'), close: false, onClick: async (e, close) => { await API.patch('/alerts/' + a.id, { status: 'false_positive' }); a.status = 'false_positive'; renderRows(); close(); } });
       if (!blocked) act.push({ label: T('Chặn IP nguồn', 'Block source IP'), danger: true, close: false, onClick: async (e, close) => {
         try { const r = await API.post('/blocklist', { ip: a.ip, reason: a.type + ' (' + a.signature + ')', ruleSid: a.sid }); toast(T('Đã gửi lệnh chặn: ', 'Block sent: ') + r.status, r.status === 'applied' ? 'ok' : 'warn'); close(); } catch (er) { toast(er.message, 'bad'); }
-      } });
+      }});
     }
+    act.push({ label: T('Dòng thời gian IP', 'IP Timeline'), close: false, onClick: () => showIncident(a.ip) });
     act.push({ label: T('Tải JSON', 'Download JSON'), close: false, onClick: () => download(`alert-${a.id}.json`, JSON.stringify(a, null, 2), 'application/json') });
     act.push({ label: T('Đóng', 'Close') });
     modal({ title: `${a.type} — ${a.id}`, wide: true, actions: act, body: h('div', {},
       h('table', { class: 'tbl', style: { minWidth: 0 } }, h('tbody', {},
         row(T('Thời gian', 'Time'), fmtDateTime(a.ts)), row(T('Mức độ', 'Severity'), sevChip(a.sev)), row(T('Nguồn → Đích', 'Source → Dest'), `${a.ip}:${a.src_port || '—'} → ${a.dst_ip}:${a.dst_port || '—'} (${a.proto})`),
-        row(T('Chữ ký', 'Signature'), a.signature), row('SID', a.sid || '—'), row(T('Nguồn dữ liệu', 'Data source'), `${a.source}${a.agent ? ' / ' + a.agent : ''}`), row(T('Trạng thái', 'Status'), statusLabel(a.status)))),
+        row(T('Chữ ký', 'Signature'), a.signature), row('SID', a.sid || '—'), row(T('Nguồn dữ liệu', 'Data source'), `${a.source}${a.agent ? ' / ' + a.agent : ''}`), row(T('Trạng thái', 'Status'), statusLabel(a.status)),
+        a.mitre ? row('MITRE ATT&CK', h('span', {}, h('span', { class: 'chip' }, a.mitre.technique), ' ', a.mitre.tactic, a.mitre.techniqueName ? ' — ' + a.mitre.techniqueName : '')) : null)),
       h('b', {}, 'Payload / Log'), h('pre', { class: 'pl' }, a.payload || '—')) });
   }
 
@@ -38,8 +75,10 @@
     countEl.textContent = `${list.length} / ${S.alerts.length}`;
     tbody.replaceChildren(...(list.length ? list.slice(0, 300).map(a => h('tr', { class: 'click', onclick: () => detail(a) },
       h('td', {}, fmtTime(a.ts)), h('td', {}, sevChip(a.sev)), h('td', {}, a.type, h('br'), h('small', { class: 'mut' }, a.signature.slice(0, 70))),
-      h('td', { class: 'mono' }, `${a.ip}${a.src_port ? ':' + a.src_port : ''}`), h('td', { class: 'mono' }, `${a.dst_ip}:${a.dst_port || '—'}`),
-      h('td', {}, h('span', { class: 'chip' }, a.source)), h('td', {}, statusLabel(a.status)))) :
+      h('td', { class: 'mono click', onclick: e => { e.stopPropagation(); showIncident(a.ip); } }, a.ip + (a.src_port ? ':' + a.src_port : ''), h('span', { class: 'chip', style: { marginLeft: '4px', cursor: 'pointer', fontSize: '10px' }, title: T('Dòng thời gian sự cố', 'Incident timeline') }, '⏱')),
+      h('td', { class: 'mono' }, `${a.dst_ip}:${a.dst_port || '—'}`),
+      h('td', {}, a.mitre ? h('span', { class: 'chip', title: a.mitre.tactic + (a.mitre.techniqueName ? ' — ' + a.mitre.techniqueName : '') }, a.mitre.technique) : h('span', { class: 'chip' }, a.source)),
+      h('td', {}, statusLabel(a.status)))) :
       [h('tr', {}, h('td', { colspan: 7 }, empty(T('Không có cảnh báo phù hợp', 'No matching alerts'), T('Chỉ hiển thị dữ liệu thật từ Suricata/Wazuh/nguồn đẩy log.', 'Only real data from Suricata/Wazuh/ingest is shown.'))))]));
   }
 
@@ -59,7 +98,7 @@
         h('div', { style: { width: '190px' } }, mk('type', [['', T('Mọi kiểu tấn công', 'All types')], ...types.map(t => [t, t])])),
         h('div', { style: { width: '150px' } }, mk('sev', [['', T('Mọi mức độ', 'All severities')], ['High', 'High'], ['Medium', 'Medium'], ['Low', 'Low']])),
         h('div', { style: { width: '170px' } }, mk('status', [['', T('Mọi trạng thái', 'All statuses')], ['active', statusLabel('active')], ['resolved', statusLabel('resolved')], ['false_positive', statusLabel('false_positive')]]))),
-      h('div', { class: 'tbl-wrap' }, h('table', { class: 'tbl' }, h('thead', {}, h('tr', {}, ['Thời gian|Time', 'Mức|Level', 'Loại tấn công|Attack', 'Nguồn|Source', 'Đích|Destination', 'Nguồn log|Origin', 'Trạng thái|Status'].map(c => { const [v, e] = c.split('|'); return h('th', {}, T(v, e)); }))), tbody)));
+      h('div', { class: 'tbl-wrap' }, h('table', { class: 'tbl' }, h('thead', {}, h('tr', {}, ['Thời gian|Time', 'Mức|Level', 'Loại tấn công|Attack', 'Nguồn|Source', 'Đích|Destination', 'MITRE/Origin', 'Trạng thái|Status'].map(c => { const [v, e] = c.split('|'); return h('th', {}, T(v, e)); }))), tbody)));
     renderRows();
   }
 

@@ -95,7 +95,7 @@
     ['gateway', 'Cổng kết nối (Gateway)', 'Gateway', 'route'], ['ports', 'Cổng & Port', 'Ports', 'plug'],
     ['security', 'Chặn IP & Luật', 'Blocklist & Rules', 'ban'], ['wazuh', 'Wazuh', 'Wazuh', 'server'],
     ['reports', 'Báo cáo', 'Reports', 'file'], ['account', 'Tài khoản', 'Account', 'user'],
-    ['--admin'], ['a-users', 'Quản lý User', 'Users', 'users'], ['a-vms', 'Máy ảo (VM)', 'Virtual machines', 'server'],
+    ['--admin'], ['a-scenarios', 'Kịch bản tấn công', 'Attack Scenarios', 'bolt'], ['a-users', 'Quản lý User', 'Users', 'users'], ['a-vms', 'Máy ảo (VM)', 'Virtual machines', 'server'],
     ['a-tools', 'Công cụ Gateway', 'Gateway tools', 'cube'], ['a-system', 'Cài đặt hệ thống', 'System settings', 'gear'], ['a-audit', 'Nhật ký (Audit)', 'Audit log', 'list']
   ];
 

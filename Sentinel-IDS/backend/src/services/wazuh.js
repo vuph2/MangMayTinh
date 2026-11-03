@@ -84,6 +84,15 @@ function mapHit(h) {
   const ip = d.srcip || d.src_ip || (d.alert && d.alert.src_ip) || (s.data && s.data.srcip) || agent.ip || '';
   const sig = (d.alert && d.alert.signature) || d.signature || rule.description || '';
   const sev = resolveSev(rule, d);
+  let mitre = null;
+  if (rule.mitre) {
+    const id = Array.isArray(rule.mitre.id) ? rule.mitre.id[0] : rule.mitre.id;
+    const tactic = Array.isArray(rule.mitre.tactic) ? rule.mitre.tactic[0] : rule.mitre.tactic;
+    const techName = Array.isArray(rule.mitre.technique) ? rule.mitre.technique[0] : rule.mitre.technique;
+    if (id || tactic) {
+      mitre = { technique: id || '', tactic: tactic || '', techniqueName: techName || '' };
+    }
+  }
   return {
     ts: Date.parse(s.timestamp) || Date.now(), ip, src_port: +(d.src_port || d.srcport) || 0,
     dst_ip: d.dstip || d.dest_ip || agent.ip || '', dst_port: +(d.dest_port || d.dstport) || 0, proto: String(d.proto || 'TCP').toUpperCase(),
@@ -95,7 +104,8 @@ function mapHit(h) {
     payload: String(s.full_log || '').slice(0, 1500),
     source: 'wazuh',
     agent: agent.name || '',
-    dedupKey: 'wazuh|' + h._id
+    dedupKey: 'wazuh|' + h._id,
+    mitre: mitre || undefined
   };
 }
 
