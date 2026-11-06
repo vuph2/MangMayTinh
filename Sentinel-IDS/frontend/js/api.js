@@ -1,4 +1,10 @@
-/** Sentinel IDS - API client (Frontend <-> Backend) */
+/**
+ * api.js — Lop goi API (Frontend noi chuyen voi Backend).
+ *  - API_BASE: dia chi backend. Mac dinh = cung ten mien, cong 3000 (xem config.js).
+ *  - API.get/post/put/patch/del: gui yeu cau HTTP, tu dinh kem token dang nhap o header,
+ *    tu doc JSON tra ve, va nem Error (kem thong bao) khi backend bao loi.
+ *  - setToken/getToken: luu token vao localStorage de giu dang nhap giua cac lan tai trang.
+ */
 (function () {
   const cfg = window.SENTINEL_CONFIG || {};
   const API_BASE = cfg.API_BASE || `${location.protocol}//${location.hostname}:3000/api`;

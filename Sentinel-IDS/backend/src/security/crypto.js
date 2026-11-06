@@ -1,4 +1,16 @@
 'use strict';
+/**
+ * crypto.js — Cac ham bao mat, dung module 'crypto' co san cua Node (khong can thu vien ngoai).
+ *
+ * Cho nguoi moi, file nay lam 4 viec:
+ *  1) Bam mat khau (hashPassword/verifyPassword): luu mat khau duoi dang bam scrypt, KHONG luu
+ *     mat khau goc. Khi dang nhap thi bam lai roi so sanh.
+ *  2) Ma hoa/giai ma du lieu nhay cam (encrypt/decrypt) bang AES-256-GCM: dung cho mat khau SSH
+ *     cua VM, token Telegram, mat khau email... (luu an toan trong file JSON).
+ *  3) Tao/kiem tra JWT (signJwt/verifyJwt): token dang nhap co chu ky HS256.
+ *  4) Tao chuoi ngau nhien (randomToken) va so sanh an toan (safeEqual, chong do thoi gian).
+ * Tat ca deu dung chung 1 "master key" lay tu APP_SECRET hoac file data/secret.key.
+ */
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');

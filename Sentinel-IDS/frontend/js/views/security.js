@@ -1,4 +1,10 @@
-/** Chan IP (Active Response that) + Luat Suricata (deploy that) + Wazuh (API/Indexer that) + Danh sach trang */
+/**
+ * security.js — Trang "Bao mat" (3 tab) + trang Wazuh.
+ *  - Tab Danh sach chan (Blocklist): chan/bo chan IP that qua iptables tren VM victim.
+ *  - Tab Luat Suricata (Rules): them/sua/xoa luat va trien khai xuong may sensor.
+ *  - Tab Danh sach trang (Whitelist): IP/SID tin cay se bi BO QUA de giam canh bao gia.
+ *  - Views.wazuh: xem trang thai Wazuh, danh sach agent va canh bao moi nhat.
+ */
 (function () {
   const { h, icon, T, toast, modal, confirmBox, field, input, select, check, fmtTime, fmtDateTime, empty, sevChip, copyText, dropdown } = UI;
   const admin = () => S.me.role === 'admin';

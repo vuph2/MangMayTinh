@@ -1,5 +1,11 @@
 'use strict';
-/** Lop tien ich SSH dung chung: ket noi (TOFU host key), exec, sudo, forwardOut. */
+/**
+ * ssh.js — Tien ich SSH dung chung cho toan he thong (dua tren thu vien ssh2).
+ *  - connect(vm): mo ket noi SSH toi 1 VM (nho host key lan dau — kieu TOFU).
+ *  - exec(vm, cmd): chay 1 lenh tren VM, tra ve { code, stdout, stderr }. Co ho tro sudo.
+ *  - forwardOut(): mo duong chuyen tiep tu VM toi 1 may/cong khac (dung cho Gateway & Terminal).
+ *  - shq(s): boc chuoi an toan khi ghep vao lenh shell (chong chen lenh - command injection).
+ */
 const { Client } = require('ssh2');
 const net = require('net');
 const vms = require('./vms');

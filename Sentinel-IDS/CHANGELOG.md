@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [V2.2] – 2026-11-06
+
+### Added (chức năng blue-team mới)
+- **Chạy kịch bản tấn công từ web** (Nmap, Hydra, sqlmap, hping3, curl) từ VM `attacker`, kèm **đo hiệu quả phát hiện** tự động (TP, số cảnh báo, độ trễ).
+- **Gom cảnh báo thành sự cố + dòng thời gian** theo IP nguồn; **thống kê chi tiết** (top IP, top chữ ký, theo giờ) và **ánh xạ MITRE ATT&CK**.
+- **Đọc `eve.json`** của Suricata (nhiều trường hơn `fast.log`), tự nhận diện theo `logPath`.
+- **Chống tràn cảnh báo**: gộp cảnh báo cùng IP+loại theo tần suất thành 1 cảnh báo đại diện có bộ đếm (cấu hình trong *Cài đặt hệ thống*).
+- **Báo cáo theo khoảng thời gian** (Từ/Đến + nút nhanh) với biểu đồ, **xuất CSV và PDF**.
+- **Gửi Email cảnh báo (SMTP)** song song Telegram — tự viết SMTP qua `net`/`tls`, không thêm thư viện (hỗ trợ STARTTLS 587 / TLS 465, nút gửi email thử).
+- **Danh sách trắng (Whitelist)** IP/SID để giảm báo động giả.
+
+### Fixed
+- Sửa xung đột `window.Views.reports` bị định nghĩa trùng ở `account.js` khiến trang **Báo cáo mới** (thống kê/MITRE) bị ghi đè bởi bản cũ — nay `reports.js` là trang Báo cáo duy nhất.
+- Sửa tiêu đề thẻ "Top 10…" hiển thị lỗi `[object SVGSVGElement]` do nối chuỗi với phần tử icon.
+- Căn giữa lại nút **"Áp dụng"** theo chiều dọc so với ô lịch "Đến" trên thanh chọn khoảng thời gian.
+
+### Changed
+- Gỡ bản ứng dụng cũ trùng lặp (`public/` + `server/`) khỏi gói, chỉ giữ ứng dụng hiện hành `Sentinel-IDS/` (giữ `.git` để push lên GitHub).
+- Thêm **chú thích tiếng Việt cho người mới** ở đầu mỗi file và tại các đoạn logic khó; viết lại README hướng dẫn chạy + giải thích mọi chức năng.
+- Bổ sung `test/test_new_features.js` (8 kiểm thử cho các chức năng mới). Toàn bộ kiểm thử: **70 + 8 đạt**.
+
+---
+
 ## [V1.3] – 2026-10-22
 
 ### Merged

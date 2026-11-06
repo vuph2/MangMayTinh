@@ -181,7 +181,33 @@ assert.strictEqual(sensors.parseEveLine(fakeEveFlow, { id: 'vm-sensor' }), null,
 
 console.log('  ✔ Parser eve.json cho Suricata hoat dong chinh xac');
 
-console.log('\n========================================');
-console.log('TAT CA 6 CHUC NANG KIEM THU DAT 100%!');
-console.log('========================================');
+// 7. Chong tran canh bao (Flood control)
+console.log('[7] Chong tran canh bao (gop theo tan suat)');
+const settings = require('../src/services/settings');
+settings.update({ floodControl: { enabled: true, windowSec: 60, threshold: 3 } });
+alerts.clear();                                   // reset de dem cho chinh xac
+const floodType = 'FLOOD-TEST';
+let repRet;
+for (let i = 0; i < 10; i++) repRet = alerts.add({ ip: '203.0.113.50', dst_ip: '10.0.0.5', type: floodType, sev: 'Low', signature: 'flood sig' });
+const floodRows = alerts.all().filter(a => a.type === floodType);
+assert.ok(floodRows.length <= 4, '10 canh bao giong nhau chi tao <=4 dong (nguong+1), con lai bi gop');
+const rep = floodRows.find(a => a.aggregated);
+assert.ok(rep && rep.count >= 7, 'Canh bao dai dien phai dem duoc so lan bi gop (count)');
+assert.strictEqual(repRet.id, rep.id, 'add() tra ve canh bao dai dien khi dang bi tran');
+console.log('  ✔ Chong tran: gop canh bao lap lai thanh 1 canh bao dai dien co bo dem');
+
+// 8. Gui Email (SMTP) — kiem tra xu ly cau hinh (khong gui that)
+(async () => {
+  console.log('[8] Gui Email (SMTP)');
+  const email = require('../src/services/email');
+  await assert.rejects(() => email.send({ subject: 'x', text: 'y' }, { host: '', to: 'a@b.c' }), /host/i,
+    'Thieu may chu SMTP phai bao loi ro rang');
+  settings.update({ email: { enabled: false } });
+  assert.strictEqual(await email.notify('x', 'y'), false, 'notify khi email tat phai tra false (khong nem loi)');
+  console.log('  ✔ Dich vu Email xu ly cau hinh & loi dung cach');
+
+  console.log('\n========================================');
+  console.log('TAT CA 8 CHUC NANG KIEM THU DAT 100%!');
+  console.log('========================================');
+})();
 

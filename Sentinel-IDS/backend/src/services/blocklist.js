@@ -1,5 +1,13 @@
 'use strict';
-/** Active Response THAT: SSH vao may duoc bao ve (role "victim") chay iptables DROP. */
+/**
+ * blocklist.js — "Active Response": chan 1 IP tan cong NGAY TREN may that.
+ *
+ * Cach hoat dong (cho nguoi moi):
+ *  - He thong SSH vao cac VM co vai tro "victim" (may duoc bao ve) va chay lenh `iptables`
+ *    de chan (DROP) moi goi tin den tu IP xau. Day la hanh dong that, khong phai gia lap.
+ *  - Co the chan co thoi han (duration giay) — het han thi tu dong bo chan.
+ *  - KHONG cho chan IP cua chinh he thong/may trung gian (de tranh tu cat ket noi cua minh).
+ */
 const os = require('os');
 const net = require('net');
 const store = require('../db/store');
@@ -20,6 +28,11 @@ function ownAddresses() {
 
 const enforcers = () => vms.all().filter(v => v.enabled && (v.roles || []).includes('victim'));
 
+// applyOn(): them (add=true) hoac go (add=false) luat chan IP tren 1 VM qua SSH.
+//  - iptables -C : kiem tra luat da ton tai chua (tranh them trung)
+//  - iptables -I INPUT : chen luat DROP vao dau chuoi INPUT (chan traffic vao may)
+//  - DOCKER-USER      : chuoi danh cho container Docker (neu victim chay dich vu trong Docker)
+//  - Khi go: lap lai -D cho den khi khong con luat nao (xoa sach)
 async function applyOn(vm, ip, add) {
   const cmd = add
     ? `iptables -C INPUT -s ${ip} -j DROP 2>/dev/null || iptables -I INPUT -s ${ip} -j DROP; iptables -L DOCKER-USER -n >/dev/null 2>&1 && (iptables -C DOCKER-USER -s ${ip} -j DROP 2>/dev/null || iptables -I DOCKER-USER -s ${ip} -j DROP); true`

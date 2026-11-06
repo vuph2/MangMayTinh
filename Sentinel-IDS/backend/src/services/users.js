@@ -1,4 +1,11 @@
 'use strict';
+/**
+ * users.js — Quan ly TAI KHOAN nguoi dung.
+ * Gom: tao/sua/xoa user, phan quyen (admin/user), duyet tai khoan dang ky,
+ * khoa tai khoan khi nhap sai mat khau nhieu lan, va "tokenVersion" (tang len de
+ * vo hieu toan bo token cu khi doi mat khau / dang xuat). Mat khau luu dang bam scrypt.
+ * bootstrapAdmin(): tao san tai khoan admin khi chay lan dau.
+ */
 const store = require('../db/store');
 const cfg = require('../config');
 const { hashPassword, verifyPassword, randomPassword } = require('../security/crypto');

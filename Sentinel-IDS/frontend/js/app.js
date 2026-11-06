@@ -1,4 +1,12 @@
-/** Sentinel IDS - Frontend core: dang nhap, dieu huong, trang thai chung, SSE realtime */
+/**
+ * app.js — "Bo nao" cua Frontend, dieu phoi moi thu:
+ *  - Dang nhap / dang ky / quen mat khau, va luu trang thai chung trong S (window.S).
+ *  - Dieu huong (router): doc location.hash (vd #/reports) roi goi view tuong ung ve giao dien
+ *    vao vung <main>. Moi view tu dang ky o window.Views[ten] (xem cac file views/*.js).
+ *  - SSE realtime: mo 1 ket noi "luon mo" toi /api/events de nhan canh bao moi NGAY LAP TUC
+ *    (khong can tai lai trang), phat am bao va cap nhat so dem.
+ *  - Thanh dieu huong ben trai, doi ngon ngu (Viet/Anh), doi giao dien sang/toi.
+ */
 (function () {
   const { h, icon, T, toast, modal, field, input } = UI;
   const S = window.S = { me: null, policy: null, vms: [], tools: [], alerts: [], stats: null, tunnels: [], rules: [], blocklist: [], unread: 0, route: 'dashboard', sse: null, sseOk: false };

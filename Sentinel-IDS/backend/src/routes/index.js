@@ -1,4 +1,15 @@
 'use strict';
+/**
+ * routes/index.js — BAN DO API (danh sach tat ca duong dan /api/...).
+ *
+ * Cho nguoi moi doc file nay:
+ *  - r.get / r.post / r.put / r.patch / r.delete dinh nghia 1 duong dan + ham xu ly.
+ *  - Tham so thu 2 cho biet quyen: USER = can dang nhap, ADMIN = can quyen admin,
+ *    { auth: 'ingest' } = cho phep may ngoai dung X-Ingest-Key. Khong co = cong khai.
+ *  - Ham xu ly nhan { req, params, query, body, user } va tra ve 1 object -> gui ve dang JSON.
+ *  - Moi route chi 1-2 dong: kiem tra/goi service tuong ung roi tra ket qua. Logic that nam
+ *    trong cac file src/services/*. Nho vay doc o day la thay nhanh "he thong co nhung API gi".
+ */
 const { Router, HttpError, rateLimit, clientIp } = require('../http');
 const cfg = require('../config');
 const { signJwt } = require('../security/crypto');
@@ -14,6 +25,7 @@ const blocklist = require('../services/blocklist');
 const rules = require('../services/rules');
 const settings = require('../services/settings');
 const telegram = require('../services/telegram');
+const email = require('../services/email');
 const wazuh = require('../services/wazuh');
 const sensors = require('../services/sensors');
 const monitor = require('../services/monitor');
@@ -30,9 +42,11 @@ const USER = { auth: true };
 // remember=true: tu dong dang nhap 30 ngay (song qua restart). Nguoc lai: 8 gio va chi hieu luc den khi backend restart.
 const issueToken = (u, remember) => signJwt({ sub: u.id, role: u.role, tv: u.tokenVersion, rem: !!remember, bid: remember ? undefined : A.BOOT_ID }, remember ? 30 * 86400 : cfg.TOKEN_TTL_SEC);
 const str = (v, max = 200) => String(v === undefined || v === null ? '' : v).slice(0, max);
+// Lay khoang thoi gian tu query (?from=..&to=..). Khong co -> {} (che do mac dinh).
+const range = q => (q.from && q.to) ? { from: parseInt(q.from, 10), to: parseInt(q.to, 10) } : {};
 
 // ======================= AUTH =======================
-r.get('/health', () => ({ ok: true, time: Date.now(), version: '2.0.0' }));
+r.get('/health', () => ({ ok: true, time: Date.now(), version: '2.2.0' }));
 
 r.post('/auth/login', async ({ req, body }) => {
   const ip = clientIp(req);
@@ -161,7 +175,8 @@ r.patch('/alerts/:id', ADMIN, ({ user, params, body }) => {
   audit.log(user, 'alert.status', `${a.id} -> ${a.status}`); return a;
 });
 r.delete('/alerts', ADMIN, ({ user }) => { alerts.clear(); audit.log(user, 'alert.clear'); return { ok: true }; });
-r.get('/stats', USER, () => ({ ...alerts.stats(), blockedIps: blocklist.list().length, vmsOnline: vms.all().filter(v => vms.rt(v.id).on).length, vmsTotal: vms.all().length, tunnelsRunning: tunnels.running(), sse: events.count() }));
+// /stats: khong co from/to -> so lieu mac dinh (3h). Co from/to -> bao cao theo khoang thoi gian.
+r.get('/stats', USER, ({ query }) => ({ ...alerts.stats(range(query)), blockedIps: blocklist.list().length, vmsOnline: vms.all().filter(v => vms.rt(v.id).on).length, vmsTotal: vms.all().length, tunnelsRunning: tunnels.running(), sse: events.count() }));
 r.get('/sensors', USER, () => sensors.status());
 
 // ======================= BLOCKLIST (Active Response) =======================
@@ -191,6 +206,19 @@ r.post('/settings/telegram-test', ADMIN, async ({ user, body }) => {
   try { await telegram.send('✅ Sentinel IDS: tin nhan thu nghiem that tu ' + user.username, str(body.chatId) || undefined, str(body.token) || undefined); return { ok: true }; }
   catch (e) { throw new HttpError(502, 'Telegram loi: ' + e.message); }
 });
+// Gui email thu nghiem: dung cau hinh da luu (neu body rong) hoac cau hinh tam trong body.
+r.post('/settings/email-test', ADMIN, async ({ user, body }) => {
+  const over = {};
+  for (const k of ['host', 'user', 'from', 'to']) if (typeof body[k] === 'string' && body[k]) over[k] = str(body[k], 400);
+  if (body.port !== undefined) over.port = parseInt(body.port, 10) || 587;
+  if (body.secure !== undefined) over.secure = !!body.secure;
+  if (typeof body.pass === 'string' && body.pass) over.pass = body.pass;
+  try {
+    await email.send({ subject: '[Sentinel IDS] Email thu nghiem', text: 'Day la email thu nghiem that, gui boi ' + user.username + '.\nNeu ban nhan duoc email nay, cau hinh SMTP da dung.' }, Object.keys(over).length ? over : undefined);
+    audit.log(user, 'settings.email-test', over.to || '');
+    return { ok: true };
+  } catch (e) { throw new HttpError(502, 'Email loi: ' + e.message); }
+});
 r.post('/settings/ingest-key', ADMIN, ({ user }) => { audit.log(user, 'settings.ingest-key'); return { ingestKey: settings.regenerateIngestKey() }; });
 r.get('/settings/ingest-key', ADMIN, () => ({ ingestKey: settings.get().ingestKey }));
 r.get('/audit', ADMIN, ({ query }) => audit.list({ limit: parseInt(query.limit, 10) || 200, user: query.user, action: query.action }));
@@ -206,8 +234,8 @@ r.delete('/whitelist/sids/:sid', ADMIN, ({ user, params }) => { const r = whitel
 
 // ======================= INCIDENTS / REPORTS =======================
 r.get('/incidents', USER, ({ query }) => alerts.incidents(str(query.ip, 64), query.limit));
-r.get('/top-ips', USER, ({ query }) => ({ data: alerts.topIps(parseInt(query.n, 10) || 10) }));
-r.get('/top-signatures', USER, ({ query }) => ({ data: alerts.topSignatures(parseInt(query.n, 10) || 10) }));
+r.get('/top-ips', USER, ({ query }) => ({ data: alerts.topIps(parseInt(query.n, 10) || 10, range(query)) }));
+r.get('/top-signatures', USER, ({ query }) => ({ data: alerts.topSignatures(parseInt(query.n, 10) || 10, range(query)) }));
 
 // ======================= SCENARIOS =======================
 r.get('/scenarios', ADMIN, () => scenarios.listScenarios());

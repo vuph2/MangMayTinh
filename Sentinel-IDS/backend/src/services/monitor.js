@@ -1,5 +1,10 @@
 'use strict';
-/** Kiem tra song/chet that (TCP + ping) va do CPU/RAM that qua SSH (/proc/stat, free). */
+/**
+ * monitor.js — Theo doi "suc khoe" cac VM theo thoi gian thuc.
+ *  - Kiem tra song/chet: thu ket noi TCP toi cong SSH va/hoac ping.
+ *  - Do CPU/RAM: SSH vao VM doc /proc/stat va lenh `free` roi tinh phan tram.
+ * Chay dinh ky (start) va cap nhat trang thai de trang Tong quan hien thi.
+ */
 const { execFile } = require('child_process');
 const net = require('net');
 const vms = require('./vms');

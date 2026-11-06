@@ -1,4 +1,12 @@
-﻿/** Quan tri: User, May ao (VM), Cong cu Gateway, Cai dat he thong, Nhat ky */
+﻿/**
+ * admin.js — Cac trang QUAN TRI (chi admin). Moi ham dinh nghia 1 trang:
+ *  - usersView: quan ly tai khoan (tao/sua/xoa/duyet/mo khoa, phan quyen, chinh sach cong).
+ *  - vmsView: quan ly may ao (VM) — them IP, SSH, vai tro; kiem tra ket noi.
+ *  - toolsView: danh muc cong cu mo qua Gateway.
+ *  - systemView: CAI DAT HE THONG — Telegram, Email (SMTP), Wazuh, tu dong chan IP,
+ *    chong tran canh bao, Gateway, khoa ingest... (noi bat/cau hinh cac tinh nang moi).
+ *  - auditView: xem nhat ky hoat dong.
+ */
 (function () {
   const { h, icon, T, toast, modal, confirmBox, field, input, select, check, fmtDateTime, timeAgo, empty, copyText, dropdown } = UI;
   const page = (title, sub, ...extra) => h('div', { class: 'page-h' }, h('h2', {}, title), sub ? h('p', {}, sub) : null, h('span', { style: { flex: 1 } }), ...extra);
@@ -109,6 +117,10 @@
       wIdxPort: input({ type: 'number', value: w.indexerPort }), wIdxUser: input({ value: w.indexerUser }), wIdxPass: UI.pw({ placeholder: w.hasIndexerPass ? T('(đã lưu)', '(saved)') : '' }), wTls: check(T('Kiểm tra chứng chỉ TLS (tắt nếu Wazuh dùng chứng chỉ tự ký)', 'Verify TLS cert'), w.verifyTLS), wPoll: input({ type: 'number', value: w.pollSec }),
       abEn: check(T('Tự động chặn IP khi lặp lại nhiều lần', 'Auto-block repeat offenders'), ab.enabled), abTh: input({ type: 'number', value: ab.threshold }), abWin: input({ type: 'number', value: ab.windowSec }), abDur: input({ type: 'number', value: ab.durationSec }),
       incCut: check(T('Tự động NGẮT kết nối Gateway liên quan khi có sự cố', 'Auto-cut related gateway links on incident'), inc.autoCut), incSev: select([['High', 'High'], ['Medium', 'Medium+'], ['Low', 'Low+']], inc.minSeverity),
+      // MOI: Email (SMTP) — gui canh bao qua email, song song voi Telegram
+      emEn: check(T('Bật gửi cảnh báo qua Email', 'Enable Email alerts'), s.email.enabled), emHost: input({ value: s.email.host, placeholder: 'smtp.gmail.com' }), emPort: input({ type: 'number', value: s.email.port }), emSecure: check(T('TLS ngay (cổng 465). Tắt = STARTTLS (cổng 587)', 'Implicit TLS (465). Off = STARTTLS (587)'), s.email.secure), emUser: input({ value: s.email.user, placeholder: 'you@gmail.com' }), emPass: UI.pw({ placeholder: s.email.hasPass ? T('(đã lưu — để trống để giữ)', '(saved — empty to keep)') : T('mật khẩu ứng dụng', 'app password') }), emFrom: input({ value: s.email.from, placeholder: T('(để trống = dùng user)', '(empty = use user)') }), emTo: input({ value: s.email.to, placeholder: 'soc@example.com, admin@example.com' }), emSev: select([['High', 'High'], ['Medium', 'Medium+'], ['Low', 'Low+']], s.email.minSeverity),
+      // MOI: Chong tran canh bao
+      fcEn: check(T('Gộp cảnh báo lặp lại (chống tràn)', 'Merge repeated alerts (flood control)'), s.floodControl.enabled), fcWin: input({ type: 'number', value: s.floodControl.windowSec }), fcTh: input({ type: 'number', value: s.floodControl.threshold }),
       allowReg: check(T('Cho phép người dùng tự đăng ký (cần admin duyệt)', 'Allow self-registration (admin approval)'), (s.security || {}).allowRegistration !== false),
       gLife: input({ type: 'number', value: g.maxLifetimeMin }), gIdle: input({ type: 'number', value: g.idleMin }), gMax: input({ type: 'number', value: g.maxTunnelsPerUser }), health: input({ type: 'number', value: s.healthIntervalSec })
     };
@@ -120,6 +132,8 @@
           wazuh: { enabled: v(f.wEn), host: f.wHost.value, apiPort: f.wApiPort.value, apiUser: f.wApiUser.value, apiPass: f.wApiPass.value, indexerPort: f.wIdxPort.value, indexerUser: f.wIdxUser.value, indexerPass: f.wIdxPass.value, verifyTLS: v(f.wTls), pollSec: f.wPoll.value },
           autoBlock: { enabled: v(f.abEn), threshold: f.abTh.value, windowSec: f.abWin.value, durationSec: f.abDur.value },
           incident: { autoCut: v(f.incCut), minSeverity: f.incSev.value },
+          email: { enabled: v(f.emEn), host: f.emHost.value, port: f.emPort.value, secure: v(f.emSecure), user: f.emUser.value, pass: f.emPass.value, from: f.emFrom.value, to: f.emTo.value, minSeverity: f.emSev.value },
+          floodControl: { enabled: v(f.fcEn), windowSec: f.fcWin.value, threshold: f.fcTh.value },
           security: { allowRegistration: v(f.allowReg) }, gateway: { maxLifetimeMin: f.gLife.value, idleMin: f.gIdle.value, maxTunnelsPerUser: f.gMax.value }, healthIntervalSec: f.health.value });
         toast(T('Đã lưu cài đặt', 'Settings saved'), 'ok'); systemView(root);
       } catch (e) { err(e.message); }
@@ -129,8 +143,11 @@
       h('div', { class: 'grid g2' },
         h('div', { class: 'card' }, h('h3', {}, 'Telegram Bot'), f.tgEn, field('Bot Token', f.tgTok), field('Chat ID (nhóm/kênh nhận cảnh báo)', f.tgChat), field(T('Mức tối thiểu', 'Min severity'), f.tgSev),
           h('button', { class: 'btn', onclick: async () => { try { await API.post('/settings/telegram-test', { token: f.tgTok.value, chatId: f.tgChat.value }); toast(T('Đã gửi tin nhắn Telegram thật', 'Real Telegram message sent'), 'ok'); } catch (e) { err(e.message); } } }, T('Gửi tin thử (thật)', 'Send real test'))),
+        h('div', { class: 'card' }, h('h3', {}, 'Email (SMTP)'), f.emEn, h('div', { class: 'form-grid' }, field(T('Máy chủ SMTP', 'SMTP host'), f.emHost), field('Port', f.emPort), field('User', f.emUser), field(T('Mật khẩu', 'Password'), f.emPass), field(T('Từ (From)', 'From'), f.emFrom), field(T('Gửi tới (nhiều, cách bởi dấu phẩy)', 'To (comma-separated)'), f.emTo), field(T('Mức tối thiểu', 'Min severity'), f.emSev)), f.emSecure,
+          h('button', { class: 'btn', onclick: async () => { try { await API.post('/settings/email-test', { host: f.emHost.value, port: f.emPort.value, secure: v(f.emSecure), user: f.emUser.value, pass: f.emPass.value, from: f.emFrom.value, to: f.emTo.value }); toast(T('Đã gửi email thử (thật)', 'Real test email sent'), 'ok'); } catch (e) { err(e.message); } } }, T('Gửi email thử (thật)', 'Send real test email'))),
         h('div', { class: 'card' }, h('h3', {}, 'Wazuh'), f.wEn, h('div', { class: 'form-grid' }, field('Host/IP Wazuh', f.wHost), field(T('Chu kỳ đồng bộ (giây)', 'Poll (s)'), f.wPoll), field('API port', f.wApiPort), field('API user', f.wApiUser), field('API password', f.wApiPass), field('Indexer port', f.wIdxPort), field('Indexer user', f.wIdxUser), field('Indexer password', f.wIdxPass)), f.wTls),
-        h('div', { class: 'card' }, h('h3', {}, T('Xử lý sự cố', 'Incident response')), f.incCut, field(T('Ngắt khi mức ≥', 'Cut when ≥'), f.incSev), f.abEn, h('div', { class: 'form-grid' }, field(T('Ngưỡng số cảnh báo', 'Threshold'), f.abTh), field(T('Trong (giây)', 'Window (s)'), f.abWin), field(T('Chặn trong (giây, 0=vĩnh viễn)', 'Block for (s, 0=forever)'), f.abDur))),
+        h('div', { class: 'card' }, h('h3', {}, T('Xử lý sự cố', 'Incident response')), f.incCut, field(T('Ngắt khi mức ≥', 'Cut when ≥'), f.incSev), f.abEn, h('div', { class: 'form-grid' }, field(T('Ngưỡng số cảnh báo', 'Threshold'), f.abTh), field(T('Trong (giây)', 'Window (s)'), f.abWin), field(T('Chặn trong (giây, 0=vĩnh viễn)', 'Block for (s, 0=forever)'), f.abDur)),
+          h('hr', { style: { border: 'none', borderTop: '1px solid var(--line)', margin: '12px 0' } }), f.fcEn, h('div', { class: 'form-grid' }, field(T('Cửa sổ gộp (giây)', 'Merge window (s)'), f.fcWin), field(T('Ngưỡng gộp (số cảnh báo)', 'Merge threshold'), f.fcTh))),
         h('div', { class: 'card' }, h('h3', {}, T('Tài khoản', 'Accounts')), f.allowReg),
         h('div', { class: 'card' }, h('h3', {}, 'Gateway'), h('div', { class: 'form-grid' }, field(T('Thời gian tối đa mỗi kết nối (phút, 0=không giới hạn)', 'Max lifetime (min, 0=∞)'), f.gLife), field(T('Ngắt khi rảnh (phút, 0=tắt)', 'Idle cut (min, 0=off)'), f.gIdle), field(T('Số kết nối tối đa / user', 'Max links per user'), f.gMax), field(T('Chu kỳ health-check (giây)', 'Health interval (s)'), f.health))),
         h('div', { class: 'card' }, h('h3', {}, T('Khoá đẩy log từ máy ngoài (X-Ingest-Key)', 'Ingest key')), h('pre', { class: 'pl mono' }, key), h('pre', { class: 'pl mono' }, ingest),

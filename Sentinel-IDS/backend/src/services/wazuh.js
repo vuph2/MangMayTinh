@@ -1,5 +1,12 @@
 'use strict';
-/** Client Wazuh THAT: API (cong 55000, JWT) + Indexer/OpenSearch (cong 9200, truy van wazuh-alerts-*). */
+/**
+ * wazuh.js — Ket noi THAT toi Wazuh (mot nen tang SIEM/giam sat an ninh ma nguon mo).
+ *  - Wazuh API (cong 55000, dang nhap lay JWT): xem trang thai, danh sach agent.
+ *  - Wazuh Indexer / OpenSearch (cong 9200): truy van canh bao trong chi muc wazuh-alerts-*.
+ *  - mapHit(): doi 1 ban ghi canh bao Wazuh thanh dinh dang canh bao chung cua he thong
+ *    (giu ca truong MITRE rule.mitre neu co).
+ * poll(): dinh ky keo canh bao moi tu Wazuh vao danh sach canh bao chung.
+ */
 const https = require('https');
 const settings = require('./settings');
 const alerts = require('./alerts');

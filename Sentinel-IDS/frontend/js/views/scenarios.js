@@ -1,4 +1,11 @@
-/** Chay kich ban tan cong tu web (chi admin, chi tren VM vai tro "attacker") + Do hieu qua tu dong */
+/**
+ * scenarios.js — Trang "Kich ban tan cong & Do hieu qua IDS" (CHI admin).
+ *  - Chon 1 kich ban co san (Nmap, Hydra, sqlmap, hping3...) chay tu VM vai tro "attacker"
+ *    nham vao may "victim" trong phong lab — de KIEM TRA xem IDS co phat hien duoc khong.
+ *  - Sau khi chay, he thong tu do hieu qua: co phat hien khong, bao nhieu canh bao, do tre
+ *    (latency) tu luc tan cong den luc co canh bao dau tien.
+ * Day la cong cu hoc tap phong thu (blue team) — chi chay trong lab cua chinh minh.
+ */
 (function () {
   const { h, icon, T, toast, modal, select, fmtDateTime, empty, sevChip } = UI;
   let rootEl;

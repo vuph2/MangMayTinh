@@ -1,4 +1,11 @@
 'use strict';
+/**
+ * vms.js — Quan ly danh sach MAY AO (VM) cua phong lab.
+ * Moi VM co: ten, IP, thong tin SSH, va cac VAI TRO (roles): sensor (chay Suricata),
+ * victim (may bi tan cong + noi chan IP), gateway (may trung gian), attacker (chay kich ban),
+ * siem (Wazuh)... Mat khau SSH duoc MA HOA truoc khi luu (xem crypto.js).
+ * toPublic() = ban gui ra web (an mat khau). rt() = trang thai song/chet theo thoi gian thuc.
+ */
 const net = require('net');
 const store = require('../db/store');
 const { encrypt, decrypt } = require('../security/crypto');

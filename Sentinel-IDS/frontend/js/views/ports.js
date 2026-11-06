@@ -1,4 +1,9 @@
-/** Quan ly cong: xem chinh sach, doi port, them port (cong cap san hoac private), kiem tra cong dich qua VM */
+/**
+ * ports.js — Trang "Cong & Port": xem chinh sach cong cua ban (cong duoc cap / dai cong private),
+ * doi port, them port, va kiem tra 1 cong cua may dich co mo khong (probe qua VM trung gian).
+ * Cho nguoi moi: "port" la so cong dich vu mang (vd 80=web, 22=SSH). He thong gioi han user
+ * chi duoc dung nhung cong duoc phep de tranh dung cham cong he thong.
+ */
 (function () {
   const { h, icon, T, toast, confirmBox, dropdown, field, input, select, empty, modal } = UI;
   let rootEl;

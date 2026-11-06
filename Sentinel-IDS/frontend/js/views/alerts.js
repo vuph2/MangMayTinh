@@ -1,3 +1,10 @@
+/**
+ * alerts.js — Trang "Canh bao": bang danh sach canh bao thoi gian thuc.
+ *  - Loc theo IP / loai / muc do / trang thai (bo loc luu trong bien f).
+ *  - Admin co the doi trang thai canh bao (active/resolved/false_positive), xem dong thoi gian
+ *    su co theo IP, chan nhanh IP, xuat CSV.
+ *  - Canh bao moi tu SSE duoc chen len dau bang ngay khi den (onEvent).
+ */
 (function () {
   const { h, icon, T, toast, modal, confirmBox, fmtTime, fmtDateTime, sevChip, dropdown, copyText, download, empty, input, select } = UI;
   let f = { ip: '', type: '', sev: '', status: '' };

@@ -1,5 +1,11 @@
 'use strict';
-/** Quan ly luat Suricata + trien khai luat THAT xuong may sensor qua SSH (local.rules, suricata -T, restart). */
+/**
+ * rules.js — Quan ly LUAT Suricata (them/sua/xoa) va trien khai THAT xuong may sensor.
+ * Cho nguoi moi: "luat" Suricata la 1 dong mo ta dau hieu tan cong (vd quet cong, SQLi).
+ *  - validate(): kiem tra cu phap luat truoc khi luu.
+ *  - deploy(): SSH vao sensor, ghi file local.rules, chay `suricata -T` (kiem tra) roi restart
+ *    de luat co hieu luc. Tat ca la thao tac that tren may sensor.
+ */
 const store = require('../db/store');
 const vms = require('./vms');
 const ssh = require('./ssh');

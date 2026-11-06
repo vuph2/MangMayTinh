@@ -1,3 +1,8 @@
+/**
+ * dashboard.js — Trang "Tong quan": cac the so lieu (tong canh bao, IP bi chan, VM online...),
+ * bieu do canh bao gan day, va luoi trang thai cac VM (song/chet, CPU/RAM).
+ * Tu cap nhat khi co su kien realtime (onEvent) tu SSE.
+ */
 (function () {
   const { h, icon, T, fmtTime, fmtUptime, timeAgo, sevChip, empty } = UI;
   let rootEl = null;

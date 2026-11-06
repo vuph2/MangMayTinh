@@ -1,4 +1,15 @@
-/** Sentinel IDS - UI helpers: h() (an toan XSS, dung textContent), icon, toast, modal, dropdown, format */
+/**
+ * ui.js — Cac HAM TIEN ICH giao dien dung chung cho moi trang (view).
+ *
+ * Quan trong nhat cho nguoi moi la ham h(tag, props, ...children): no tao 1 phan tu DOM.
+ *   Vi du:  h('button', { class: 'btn', onclick: fn }, 'Bam vao')  ->  <button class="btn">Bam vao</button>
+ *   - props: thuoc tinh (class, style, onclick...). children: chu hoac phan tu con.
+ *   - h() dung textContent (KHONG dung innerHTML) nen an toan truoc XSS (khong chen ma la).
+ * Ngoai ra co: icon() (ve icon SVG), toast() (thong bao goc man hinh), modal()/confirmBox()
+ *   (hop thoai), field()/input()/select()/check()/pw() (o nhap lieu), va cac ham dinh dang
+ *   thoi gian (fmtTime...), T(vi, en) (chon chu theo ngon ngu), download() (tai file).
+ * Moi file views/*.js dung cac ham nay de dung giao dien, va tu dang ky vao window.Views.
+ */
 window.Views = window.Views || {};
 // replaceChildren an toan: bo qua null/undefined/false, tu lam phang mang
 (function () {
